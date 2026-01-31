@@ -1,0 +1,238 @@
+"""
+RSI Civilization – GUI Game
+Single-mode, Rickover-only
+Run: python rsi_game.py
+"""
+
+from dataclasses import dataclass, field
+from typing import Dict, Optional
+import random
+import tkinter as tk
+from tkinter import ttk, messagebox
+
+
+# =============================
+# Backend
+# =============================
+
+@dataclass
+class Building:
+    name: str
+    cost: int
+    desc: str
+    yield_bonus: Dict[str, float] = field(default_factory=dict)
+    yield_mult: Dict[str, float] = field(default_factory=dict)
+
+
+@dataclass
+class Tech:
+    name: str
+    cost: int
+    desc: str
+    yield_bonus: Dict[str, float] = field(default_factory=dict)
+    yield_mult: Dict[str, float] = field(default_factory=dict)
+
+
+@dataclass
+class RSIConfig:
+    victory_deadline: int = 120
+    pop_growth_threshold: float = 8.0
+    pop_loss_threshold: float = -4.0
+    upkeep_per_pop: float = 1.0
+
+
+@dataclass
+class RSICiv:
+    turn: int = 1
+    nerds: int = 6
+    money: float = 8.0
+    isotopes: float = 0.0
+    papers: float = 0.0
+    pressure: float = 0.0
+
+    workers: Dict[str, int] = field(default_factory=lambda: {
+        "Fundraisers": 6,
+        "Army Engineers": 0,
+        "Writers": 0,
+        "Recruiters": 0,
+    })
+
+    buildings: Dict[str, int] = field(default_factory=dict)
+    techs: Dict[str, bool] = field(default_factory=dict)
+
+    def end_turn(self, buildings, techs, cfg, rng):
+        # base yields
+        money = (
+            2.1 * self.workers["Fundraisers"] +
+            0.2 * self.workers["Army Engineers"] +
+            0.6 * self.workers["Writers"] +
+            0.3 * self.workers["Recruiters"]
+        )
+
+        isotopes = 1.7 * self.workers["Army Engineers"]
+        papers = 0.9 * self.workers["Writers"] + 0.2 * self.workers["Recruiters"]
+        pressure = -0.6 * self.workers["Recruiters"]
+
+        # apply building + tech modifiers
+        for b, n in self.buildings.items():
+            bd = buildings[b]
+            for k, v in bd.yield_bonus.items():
+                locals()[k] += v * n
+            for k, v in bd.yield_mult.items():
+                locals()[k] *= v ** n
+
+        for t, unlocked in self.techs.items():
+            if unlocked:
+                td = techs[t]
+                for k, v in td.yield_bonus.items():
+                    locals()[k] += v
+                for k, v in td.yield_mult.items():
+                    locals()[k] *= v
+
+        # stochastic pressure
+        if rng.random() < 0.25:
+            pressure += rng.uniform(-1.5, 3.0)
+
+        # update stocks
+        self.money += money - cfg.upkeep_per_pop * self.nerds
+        self.isotopes += isotopes
+        self.papers += papers
+        self.pressure = max(0, self.pressure + pressure)
+
+        # population dynamics
+        if self.money >= cfg.pop_growth_threshold:
+            self.nerds += 1
+            self.money -= 2
+        elif self.money <= cfg.pop_loss_threshold and self.nerds > 1:
+            self.nerds -= 1
+            self.money += 1
+
+        # normalize workers
+        total = sum(self.workers.values())
+        if total != self.nerds:
+            self.workers["Fundraisers"] += self.nerds - total
+
+        self.turn += 1
+
+
+# =============================
+# Content
+# =============================
+
+BUILDINGS = {
+    "Endowment Fund": Building(
+        "Endowment Fund", 18, "Stable money inflow.",
+        yield_bonus={"money": 1.1}
+    ),
+    "Reactor Lab": Building(
+        "Reactor Lab", 22, "Boost isotope production.",
+        yield_mult={"isotopes": 1.12}
+    ),
+    "Writing Room": Building(
+        "Writing Room", 24, "Boost paper output.",
+        yield_bonus={"papers": 1.1}
+    ),
+    "Alumni Office": Building(
+        "Alumni Office", 20, "Reduces pressure.",
+        yield_bonus={"pressure": -0.6}
+    ),
+    "RSI": Building(
+        "RSI", 120, "Found before turn 120 to win."
+    ),
+}
+
+TECHS = {
+    "Grantwriting": Tech("Grantwriting", 10, "More money.", yield_mult={"money": 1.08}),
+    "Enrichment Methods": Tech("Enrichment Methods", 12, "More isotopes.", yield_mult={"isotopes": 1.10}),
+    "Publication Machine": Tech("Publication Machine", 12, "More papers.", yield_mult={"papers": 1.12}),
+    "Legendary Alumni": Tech("Legendary Alumni", 14, "Pressure control.", yield_bonus={"pressure": -0.9}),
+}
+
+
+# =============================
+# GUI
+# =============================
+
+class RSIGame(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("RSI Civilization")
+        self.geometry("900x560")
+
+        self.cfg = RSIConfig()
+        self.civ = RSICiv()
+        self.rng = random.Random()
+
+        self._build_ui()
+        self.refresh()
+
+    def _build_ui(self):
+        left = ttk.Frame(self, padding=10)
+        left.pack(side="left", fill="y")
+
+        right = ttk.Frame(self, padding=10)
+        right.pack(side="right", fill="both", expand=True)
+
+        self.stats = tk.StringVar()
+        ttk.Label(left, textvariable=self.stats, font=("Segoe UI", 11)).pack(anchor="w")
+
+        self.job_vars = {}
+        for job in self.civ.workers:
+            v = tk.IntVar(value=self.civ.workers[job])
+            self.job_vars[job] = v
+            ttk.Label(left, text=job).pack(anchor="w")
+            ttk.Spinbox(left, from_=0, to=999, textvariable=v).pack(anchor="w")
+
+        ttk.Button(left, text="Purchase Buildings", command=self.buy_building).pack(fill="x", pady=5)
+        ttk.Button(left, text="Purchase Tech", command=self.buy_tech).pack(fill="x", pady=5)
+        ttk.Button(left, text="End Turn", command=self.end_turn).pack(fill="x", pady=5)
+
+        self.log = tk.Text(right)
+        self.log.pack(fill="both", expand=True)
+
+    def refresh(self):
+        c = self.civ
+        self.stats.set(
+            f"Turn {c.turn}/120\n"
+            f"Nerds: {c.nerds}\n"
+            f"Money: {c.money:.1f}\n"
+            f"Isotopes: {c.isotopes:.1f}\n"
+            f"Papers: {c.papers:.1f}\n"
+            f"Pressure: {c.pressure:.1f}"
+        )
+
+    def buy_building(self):
+        self._simple_shop("Isotopes", BUILDINGS, "isotopes")
+
+    def buy_tech(self):
+        self._simple_shop("Papers", TECHS, "papers", tech=True)
+
+    def _simple_shop(self, currency, items, attr, tech=False):
+        win = tk.Toplevel(self)
+        for name, item in items.items():
+            if tech and self.civ.techs.get(name):
+                continue
+            def buy(n=name, it=item):
+                if getattr(self.civ, attr) < it.cost:
+                    return
+                setattr(self.civ, attr, getattr(self.civ, attr) - it.cost)
+                if tech:
+                    self.civ.techs[n] = True
+                else:
+                    self.civ.buildings[n] = self.civ.buildings.get(n, 0) + 1
+                win.destroy()
+                self.refresh()
+            ttk.Button(win, text=f"{name} ({item.cost} {currency})", command=buy).pack(fill="x")
+
+    def end_turn(self):
+        self.civ.workers = {k: v.get() for k, v in self.job_vars.items()}
+        self.civ.end_turn(BUILDINGS, TECHS, self.cfg, self.rng)
+        self.refresh()
+
+        if self.civ.buildings.get("RSI", 0) >= 1 and self.civ.turn <= 121:
+            messagebox.showinfo("Victory", "RSI founded. You win.")
+
+# =============================
+
+if __name__ == "__main__":
+    RSIGame().mainloop()

@@ -1,0 +1,720 @@
+"""
+Tkinter Frontend + Backend in one file.
+Run: python civ_gui.py
+
+What you get:
+- Mode select (Bronze Age / Rickover)
+- Live stats panel
+- Job assignment spinboxes (auto-sums to population)
+- Purchase windows for Buildings and Tech
+- End Turn advances simulation + logs events
+- Victory/Loss popup
+
+No external libraries.
+"""
+
+from __future__ import annotations
+from dataclasses import dataclass, field
+from typing import Dict, List, Callable, Optional, Tuple
+import random
+import tkinter as tk
+from tkinter import ttk, messagebox
+
+
+# =============================
+# Backend (same engine)
+# =============================
+
+@dataclass
+class Building:
+    name: str
+    cost: int
+    desc: str
+    yield_bonus: Dict[str, float] = field(default_factory=dict)
+    yield_mult: Dict[str, float] = field(default_factory=dict)
+    on_buy: Optional[Callable[["Civ"], None]] = None
+
+
+@dataclass
+class Tech:
+    name: str
+    cost: int
+    desc: str
+    yield_bonus: Dict[str, float] = field(default_factory=dict)
+    yield_mult: Dict[str, float] = field(default_factory=dict)
+
+
+@dataclass
+class CivConfig:
+    civ_name: str
+    population_name: str
+    surplus_resource_name: str
+    production_resource_name: str
+    culture_resource_name: str
+    research_spend_name: str
+    threat_name: str
+
+    victory_building_name: str
+    victory_deadline_turn: int = 120
+
+    jobs: Dict[str, Dict[str, float]] = field(default_factory=dict)
+
+    base_surplus_consumption_per_pop: float = 1.0
+    pop_growth_surplus_threshold: float = 8.0
+    pop_loss_surplus_threshold: float = -4.0
+
+    threat_event_chance: float = 0.25
+
+    start_population: int = 6
+    start_surplus: float = 8.0
+    start_prod: float = 0.0
+    start_culture: float = 0.0
+    start_threat: float = 0.0
+
+
+@dataclass
+class Civ:
+    cfg: CivConfig
+    turn: int = 1
+
+    pop: int = 0
+    surplus: float = 0.0
+    prod: float = 0.0
+    culture: float = 0.0
+    threat: float = 0.0
+
+    workers: Dict[str, int] = field(default_factory=dict)
+    buildings: Dict[str, int] = field(default_factory=dict)
+    techs: Dict[str, bool] = field(default_factory=dict)
+
+    flat_bonus: Dict[str, float] = field(default_factory=lambda: {"surplus": 0.0, "prod": 0.0, "culture": 0.0, "threat": 0.0})
+    mult_bonus: Dict[str, float] = field(default_factory=lambda: {"surplus": 1.0, "prod": 1.0, "culture": 1.0, "threat": 1.0})
+
+    def __post_init__(self):
+        self.pop = self.cfg.start_population
+        self.surplus = self.cfg.start_surplus
+        self.prod = self.cfg.start_prod
+        self.culture = self.cfg.start_culture
+        self.threat = self.cfg.start_threat
+
+        first_job = next(iter(self.cfg.jobs.keys()))
+        self.workers = {job: 0 for job in self.cfg.jobs}
+        self.workers[first_job] = self.pop
+
+    def apply_modifiers_from_assets(self, all_buildings: Dict[str, Building], all_techs: Dict[str, Tech]) -> None:
+        self.flat_bonus = {"surplus": 0.0, "prod": 0.0, "culture": 0.0, "threat": 0.0}
+        self.mult_bonus = {"surplus": 1.0, "prod": 1.0, "culture": 1.0, "threat": 1.0}
+
+        for bname, count in self.buildings.items():
+            b = all_buildings[bname]
+            for k, v in b.yield_bonus.items():
+                self.flat_bonus[k] += v * count
+            for k, v in b.yield_mult.items():
+                self.mult_bonus[k] *= (v ** count)
+
+        for tname, unlocked in self.techs.items():
+            if not unlocked:
+                continue
+            t = all_techs[tname]
+            for k, v in t.yield_bonus.items():
+                self.flat_bonus[k] += v
+            for k, v in t.yield_mult.items():
+                self.mult_bonus[k] *= v
+
+    def compute_base_yields(self) -> Dict[str, float]:
+        base = {"surplus": 0.0, "prod": 0.0, "culture": 0.0, "threat": 0.0}
+        for job, n in self.workers.items():
+            y = self.cfg.jobs[job]
+            for k in base:
+                base[k] += y.get(k, 0.0) * n
+        return base
+
+    def normalize_workers_to_pop(self) -> None:
+        jobs = list(self.cfg.jobs.keys())
+        total = sum(self.workers.values())
+        if total == self.pop:
+            return
+        if total <= 0:
+            self.workers = {j: 0 for j in jobs}
+            self.workers[jobs[0]] = self.pop
+            return
+        scaled = {j: int(round(self.workers[j] / total * self.pop)) for j in jobs}
+        diff = self.pop - sum(scaled.values())
+        scaled[jobs[0]] += diff
+        for j in jobs:
+            scaled[j] = max(0, scaled[j])
+        while sum(scaled.values()) != self.pop:
+            if sum(scaled.values()) < self.pop:
+                scaled[jobs[0]] += 1
+            else:
+                for j in jobs:
+                    if scaled[j] > 0:
+                        scaled[j] -= 1
+                        break
+        self.workers = scaled
+
+    def end_turn_update(self, all_buildings: Dict[str, Building], all_techs: Dict[str, Tech], rng: random.Random) -> Dict[str, str]:
+        """Returns a dict containing an optional 'event' message and a 'summary'."""
+        msg = {"event": "", "summary": ""}
+
+        self.apply_modifiers_from_assets(all_buildings, all_techs)
+        base = self.compute_base_yields()
+
+        upkeep = self.cfg.base_surplus_consumption_per_pop * self.pop
+
+        y_surplus = (base["surplus"] + self.flat_bonus["surplus"]) * self.mult_bonus["surplus"]
+        y_prod    = (base["prod"]    + self.flat_bonus["prod"])    * self.mult_bonus["prod"]
+        y_culture = (base["culture"] + self.flat_bonus["culture"]) * self.mult_bonus["culture"]
+        y_threat  = (base["threat"]  + self.flat_bonus["threat"])  * self.mult_bonus["threat"]
+
+        if rng.random() < self.cfg.threat_event_chance:
+            shock = rng.uniform(-2.0, 3.5)
+            y_threat += shock
+
+        old_pop = self.pop
+        old_surplus = self.surplus
+
+        self.surplus += y_surplus - upkeep
+        self.prod    += y_prod
+        self.culture += y_culture
+        self.threat  = max(0.0, self.threat + y_threat)
+
+        # population change
+        if self.surplus >= self.cfg.pop_growth_surplus_threshold:
+            self.pop += 1
+            self.surplus -= 2.0
+            msg["event"] = f"{self.cfg.population_name} grew by +1 (surplus high)."
+        elif self.surplus <= self.cfg.pop_loss_surplus_threshold and self.pop > 1:
+            self.pop -= 1
+            self.surplus += 1.0
+            msg["event"] = f"{self.cfg.population_name} fell by -1 (surplus low)."
+
+        if self.pop != old_pop:
+            self.normalize_workers_to_pop()
+
+        msg["summary"] = (
+            f"Yields: +{self.cfg.surplus_resource_name} {y_surplus:.1f}, "
+            f"+{self.cfg.production_resource_name} {y_prod:.1f}, "
+            f"+{self.cfg.culture_resource_name} {y_culture:.1f}, "
+            f"Δ{self.cfg.threat_name} {y_threat:.1f} | "
+            f"Upkeep -{upkeep:.1f} | "
+            f"{self.cfg.surplus_resource_name}: {old_surplus:.1f}→{self.surplus:.1f}"
+        )
+
+        self.turn += 1
+        return msg
+
+
+def make_bronze_age_config() -> CivConfig:
+    return CivConfig(
+        civ_name="Bronze Age Civilization",
+        population_name="People",
+        surplus_resource_name="Food",
+        production_resource_name="Production Points",
+        culture_resource_name="Culture",
+        research_spend_name="Research Points",
+        threat_name="Threat Level",
+        victory_building_name="Great Monument",
+        jobs={
+            "Farmers":   {"surplus": 2.2},
+            "Miners":    {"surplus": 0.3, "prod": 1.6},
+            "Artisans":  {"surplus": 0.7, "prod": 0.6, "culture": 0.8},
+            "Soldiers":  {"surplus": 0.2, "threat": -0.8},
+        },
+    )
+
+def make_rickover_config() -> CivConfig:
+    return CivConfig(
+        civ_name="Rickover Civilization",
+        population_name="Nerds",
+        surplus_resource_name="Money",
+        production_resource_name="Isotopes",
+        culture_resource_name="Research",
+        research_spend_name="Papers",
+        threat_name="Pressure Level",
+        victory_building_name="RSI",
+        jobs={
+            "Fundraisers":    {"surplus": 2.1},
+            "Army Engineers": {"surplus": 0.2, "prod": 1.7},
+            "Writers":        {"surplus": 0.6, "prod": 0.4, "culture": 0.9},
+            "Recruiters":     {"surplus": 0.3, "culture": 0.2, "threat": -0.6},
+        },
+    )
+
+def make_buildings(cfg: CivConfig) -> Dict[str, Building]:
+    is_rickover = (cfg.civ_name == "Rickover Civilization")
+    if not is_rickover:
+        return {
+            "Granary": Building("Granary", 18, "More stable growth.", yield_bonus={"surplus": 1.2}),
+            "Quarry": Building("Quarry", 22, "More production.", yield_mult={"prod": 1.10}),
+            "Temple": Building("Temple", 24, "Culture engine.", yield_bonus={"culture": 1.2}, yield_mult={"culture": 1.08}),
+            "Barracks": Building("Barracks", 20, "Threat control.", yield_bonus={"threat": -0.6}),
+            "Great Monument": Building("Great Monument", 120, "Build before turn 120 to win."),
+        }
+    else:
+        return {
+            "Endowment Fund": Building("Endowment Fund", 18, "More money inflow.", yield_bonus={"surplus": 1.1}, yield_mult={"surplus": 1.05}),
+            "Reactor Lab": Building("Reactor Lab", 22, "More isotopes.", yield_mult={"prod": 1.12}),
+            "Writing Room": Building("Writing Room", 24, "More papers.", yield_bonus={"culture": 1.1}, yield_mult={"culture": 1.10}),
+            "Alumni Office": Building("Alumni Office", 20, "Pressure control.", yield_bonus={"threat": -0.6}),
+            "RSI": Building("RSI", 120, "Found before turn 120 to win."),
+        }
+
+def make_tech_tree(cfg: CivConfig) -> Dict[str, Tech]:
+    is_rickover = (cfg.civ_name == "Rickover Civilization")
+    if not is_rickover:
+        return {
+            "Irrigation": Tech("Irrigation", 10, "More food overall.", yield_mult={"surplus": 1.08}),
+            "Bronze Tools": Tech("Bronze Tools", 12, "More production overall.", yield_mult={"prod": 1.08}),
+            "Written Language": Tech("Written Language", 12, "More culture overall.", yield_mult={"culture": 1.10}),
+            "Standing Army": Tech("Standing Army", 14, "More threat control.", yield_bonus={"threat": -0.8}),
+        }
+    else:
+        return {
+            "Grantwriting": Tech("Grantwriting", 10, "More money overall.", yield_mult={"surplus": 1.08}),
+            "Enrichment Methods": Tech("Enrichment Methods", 12, "More isotopes overall.", yield_mult={"prod": 1.10}),
+            "Publication Machine": Tech("Publication Machine", 12, "More papers overall.", yield_mult={"culture": 1.12}),
+            "Legendary Alumni": Tech("Legendary Alumni", 14, "Pressure control.", yield_bonus={"threat": -0.9}),
+        }
+
+def check_victory(c: Civ) -> Optional[str]:
+    cfg = c.cfg
+    deadline = cfg.victory_deadline_turn
+    # after turn is incremented at end_turn_update, "current turn played" is turn-1
+    played_turn = c.turn - 1
+
+    if c.buildings.get(cfg.victory_building_name, 0) >= 1 and played_turn <= deadline:
+        return f"WIN: You completed {cfg.victory_building_name} by turn {played_turn} (deadline {deadline})."
+    if played_turn > deadline:
+        if c.buildings.get(cfg.victory_building_name, 0) >= 1:
+            return f"WIN (late): You completed {cfg.victory_building_name} on turn {played_turn}, after deadline {deadline}."
+        return f"LOSS: Deadline passed (turn {deadline}) without completing {cfg.victory_building_name}."
+    if c.pop <= 0:
+        return "LOSS: Your civilization collapsed."
+    return None
+
+
+# =============================
+# Frontend (Tkinter)
+# =============================
+
+def fmt(n: float) -> str:
+    return f"{n:.1f}"
+
+class GameGUI(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Bronze Age vs Rickover Civ — GUI")
+        self.geometry("980x620")
+
+        self.rng = random.Random()
+        self.civ: Optional[Civ] = None
+        self.buildings: Dict[str, Building] = {}
+        self.techs: Dict[str, Tech] = {}
+
+        self._make_mode_select()
+
+    # ---------- Mode Select ----------
+    def _make_mode_select(self):
+        self.mode_frame = ttk.Frame(self, padding=18)
+        self.mode_frame.pack(fill="both", expand=True)
+
+        ttk.Label(self.mode_frame, text="Choose a Civilization Mode", font=("Segoe UI", 16, "bold")).pack(pady=(0, 12))
+
+        desc = (
+            "Bronze Age: People/Food/Production/Culture/Threat → build Great Monument by turn 120\n"
+            "Rickover: Nerds/Money/Isotopes/Research/Pressure → found RSI by turn 120"
+        )
+        ttk.Label(self.mode_frame, text=desc, font=("Segoe UI", 11)).pack(pady=(0, 18))
+
+        btn_row = ttk.Frame(self.mode_frame)
+        btn_row.pack()
+
+        ttk.Button(btn_row, text="Bronze Age Civilization", command=lambda: self.start_game("bronze")).grid(row=0, column=0, padx=10, ipadx=10, ipady=8)
+        ttk.Button(btn_row, text="Rickover Civilization", command=lambda: self.start_game("rickover")).grid(row=0, column=1, padx=10, ipadx=10, ipady=8)
+
+    def start_game(self, mode: str):
+        cfg = make_rickover_config() if mode == "rickover" else make_bronze_age_config()
+        self.buildings = make_buildings(cfg)
+        self.techs = make_tech_tree(cfg)
+
+        self.civ = Civ(cfg=cfg)
+        self.civ.techs = {k: False for k in self.techs.keys()}
+
+        self.mode_frame.destroy()
+        self._make_main_ui()
+        self.refresh_ui()
+        self.log(f"Started: {cfg.civ_name}. Goal: {cfg.victory_building_name} by turn {cfg.victory_deadline_turn}.")
+
+    # ---------- Main UI ----------
+    def _make_main_ui(self):
+        outer = ttk.Frame(self, padding=12)
+        outer.pack(fill="both", expand=True)
+
+        # Left: Stats + controls
+        left = ttk.Frame(outer)
+        left.pack(side="left", fill="y")
+
+        # Right: Log
+        right = ttk.Frame(outer)
+        right.pack(side="right", fill="both", expand=True, padx=(12, 0))
+
+        # Stats panel
+        self.stats_box = ttk.LabelFrame(left, text="Stats", padding=10)
+        self.stats_box.pack(fill="x")
+
+        self.stats_vars = {k: tk.StringVar(value="") for k in ["turn", "pop", "surplus", "prod", "culture", "threat", "goal"]}
+        for i, key in enumerate(["turn", "pop", "surplus", "prod", "culture", "threat", "goal"]):
+            ttk.Label(self.stats_box, textvariable=self.stats_vars[key], font=("Segoe UI", 10)).pack(anchor="w")
+
+        # Jobs panel
+        self.jobs_box = ttk.LabelFrame(left, text="Assignments", padding=10)
+        self.jobs_box.pack(fill="x", pady=(10, 0))
+
+        self.job_spin_vars: Dict[str, tk.IntVar] = {}
+        self.job_spins: Dict[str, ttk.Spinbox] = {}
+        self.jobs_total_var = tk.StringVar(value="")
+
+        # placeholder; filled after civ exists
+        self.jobs_grid = ttk.Frame(self.jobs_box)
+        self.jobs_grid.pack(fill="x")
+
+        ttk.Label(self.jobs_box, textvariable=self.jobs_total_var, font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(8, 0))
+
+        # Buttons
+        btns = ttk.Frame(left)
+        btns.pack(fill="x", pady=(10, 0))
+
+        ttk.Button(btns, text="Purchase Buildings", command=self.open_building_shop).pack(fill="x", pady=(0, 6))
+        ttk.Button(btns, text="Purchase Tech", command=self.open_tech_shop).pack(fill="x", pady=(0, 6))
+        ttk.Button(btns, text="End Turn", command=self.end_turn).pack(fill="x", pady=(0, 6))
+
+        # Owned panel
+        self.owned_box = ttk.LabelFrame(left, text="Owned", padding=10)
+        self.owned_box.pack(fill="x", pady=(10, 0))
+        self.owned_text = tk.Text(self.owned_box, height=10, width=38, wrap="word")
+        self.owned_text.pack(fill="both", expand=False)
+        self.owned_text.configure(state="disabled")
+
+        # Log panel
+        self.log_box = ttk.LabelFrame(right, text="Event Log", padding=10)
+        self.log_box.pack(fill="both", expand=True)
+
+        self.log_text = tk.Text(self.log_box, wrap="word")
+        self.log_text.pack(fill="both", expand=True)
+        self.log_text.configure(state="disabled")
+
+        # Fill job controls now
+        self._build_job_controls()
+
+    def _build_job_controls(self):
+        c = self.civ
+        assert c is not None
+        # clear
+        for w in self.jobs_grid.winfo_children():
+            w.destroy()
+        self.job_spin_vars.clear()
+        self.job_spins.clear()
+
+        ttk.Label(self.jobs_grid, text="Job", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, sticky="w")
+        ttk.Label(self.jobs_grid, text="Count", font=("Segoe UI", 10, "bold")).grid(row=0, column=1, sticky="w")
+
+        jobs = list(c.cfg.jobs.keys())
+        for r, job in enumerate(jobs, start=1):
+            ttk.Label(self.jobs_grid, text=job).grid(row=r, column=0, sticky="w", pady=2)
+            v = tk.IntVar(value=c.workers.get(job, 0))
+            self.job_spin_vars[job] = v
+            sp = ttk.Spinbox(self.jobs_grid, from_=0, to=999, textvariable=v, width=8, command=self.on_jobs_changed)
+            sp.grid(row=r, column=1, sticky="w", pady=2, padx=(8, 0))
+            self.job_spins[job] = sp
+            v.trace_add("write", lambda *_: self.on_jobs_changed())
+
+        ttk.Button(self.jobs_grid, text="Auto-Fix Total", command=self.autofix_jobs).grid(row=len(jobs)+1, column=0, columnspan=2, sticky="we", pady=(8, 0))
+
+    # ---------- UI refresh ----------
+    def refresh_ui(self):
+        c = self.civ
+        assert c is not None
+        cfg = c.cfg
+
+        self.stats_vars["turn"].set(f"Turn: {c.turn}/{cfg.victory_deadline_turn}")
+        self.stats_vars["pop"].set(f"{cfg.population_name}: {c.pop}")
+        self.stats_vars["surplus"].set(f"{cfg.surplus_resource_name}: {fmt(c.surplus)}")
+        self.stats_vars["prod"].set(f"{cfg.production_resource_name}: {fmt(c.prod)}")
+        self.stats_vars["culture"].set(f"{cfg.culture_resource_name}: {fmt(c.culture)}")
+        self.stats_vars["threat"].set(f"{cfg.threat_name}: {fmt(c.threat)}")
+        self.stats_vars["goal"].set(f"Goal: Build {cfg.victory_building_name} by turn {cfg.victory_deadline_turn}")
+
+        # update job vars to match backend if needed
+        for job, v in self.job_spin_vars.items():
+            if v.get() != c.workers.get(job, 0):
+                v.set(c.workers.get(job, 0))
+
+        self.on_jobs_changed(update_backend=False)
+        self.refresh_owned()
+
+    def refresh_owned(self):
+        c = self.civ
+        assert c is not None
+        cfg = c.cfg
+
+        buildings = []
+        for name, count in sorted(c.buildings.items()):
+            buildings.append(f"- {name}" + (f" x{count}" if count > 1 else ""))
+        if not buildings:
+            buildings_text = "(none)"
+        else:
+            buildings_text = "\n".join(buildings)
+
+        techs = [f"- {name}" for name, unlocked in sorted(c.techs.items()) if unlocked]
+        techs_text = "(none)" if not techs else "\n".join(techs)
+
+        text = (
+            f"{cfg.production_resource_name} Purchases:\n{buildings_text}\n\n"
+            f"{cfg.culture_resource_name} Unlocks:\n{techs_text}\n"
+        )
+
+        self.owned_text.configure(state="normal")
+        self.owned_text.delete("1.0", "end")
+        self.owned_text.insert("1.0", text)
+        self.owned_text.configure(state="disabled")
+
+    # ---------- Logging ----------
+    def log(self, s: str):
+        self.log_text.configure(state="normal")
+        self.log_text.insert("end", s + "\n")
+        self.log_text.see("end")
+        self.log_text.configure(state="disabled")
+
+    # ---------- Job assignment handling ----------
+    def on_jobs_changed(self, update_backend: bool = True):
+        c = self.civ
+        assert c is not None
+
+        total = sum(v.get() for v in self.job_spin_vars.values())
+        remaining = c.pop - total
+        if remaining == 0:
+            self.jobs_total_var.set(f"Total assigned: {total} / {c.pop} ✅")
+        else:
+            sign = "+" if remaining > 0 else ""
+            self.jobs_total_var.set(f"Total assigned: {total} / {c.pop} (need {sign}{remaining})")
+
+        if update_backend:
+            c.workers = {job: int(self.job_spin_vars[job].get()) for job in c.cfg.jobs.keys()}
+
+    def autofix_jobs(self):
+        c = self.civ
+        assert c is not None
+
+        # pull from UI, normalize in backend, push back
+        c.workers = {job: int(self.job_spin_vars[job].get()) for job in c.cfg.jobs.keys()}
+        c.normalize_workers_to_pop()
+        for job, v in self.job_spin_vars.items():
+            v.set(c.workers.get(job, 0))
+        self.on_jobs_changed(update_backend=True)
+        self.log("Auto-fixed assignments to match population.")
+
+    # ---------- Shops ----------
+    def open_building_shop(self):
+        c = self.civ
+        assert c is not None
+        cfg = c.cfg
+
+        win = tk.Toplevel(self)
+        win.title("Buildings / Institutions")
+        win.geometry("640x420")
+
+        top = ttk.Frame(win, padding=10)
+        top.pack(fill="x")
+        ttk.Label(top, text=f"{cfg.production_resource_name} available: {fmt(c.prod)}", font=("Segoe UI", 11, "bold")).pack(anchor="w")
+
+        cols = ("Name", "Cost", "Owned")
+        tree = ttk.Treeview(win, columns=cols, show="headings", height=12)
+        for col in cols:
+            tree.heading(col, text=col)
+            tree.column(col, width=180 if col == "Name" else 90, anchor="w")
+        tree.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # description box
+        desc = tk.Text(win, height=5, wrap="word")
+        desc.pack(fill="x", padx=10, pady=(0, 10))
+        desc.configure(state="disabled")
+
+        names = list(self.buildings.keys())
+        for name in names:
+            b = self.buildings[name]
+            owned = c.buildings.get(name, 0)
+            tree.insert("", "end", iid=name, values=(b.name, b.cost, owned))
+
+        def on_select(_):
+            sel = tree.selection()
+            if not sel:
+                return
+            name = sel[0]
+            b = self.buildings[name]
+            text = f"{b.desc}\n\nBonuses: {b.yield_bonus or '(none)'}\nMultipliers: {b.yield_mult or '(none)'}"
+            desc.configure(state="normal")
+            desc.delete("1.0", "end")
+            desc.insert("1.0", text)
+            desc.configure(state="disabled")
+
+        tree.bind("<<TreeviewSelect>>", on_select)
+
+        btn_row = ttk.Frame(win, padding=10)
+        btn_row.pack(fill="x")
+
+        def buy_selected():
+            sel = tree.selection()
+            if not sel:
+                return
+            name = sel[0]
+            b = self.buildings[name]
+            if c.prod < b.cost:
+                messagebox.showwarning("Not enough", f"Not enough {cfg.production_resource_name}.")
+                return
+            c.prod -= b.cost
+            c.buildings[name] = c.buildings.get(name, 0) + 1
+            tree.set(name, "Owned", c.buildings[name])
+            self.refresh_ui()
+            self.log(f"Bought: {b.name} (-{b.cost} {cfg.production_resource_name}).")
+
+            # instant victory check if you just built it
+            result = check_victory(c)
+            if result and result.startswith("WIN"):
+                messagebox.showinfo("Victory", result)
+
+            # update header
+            for w in top.winfo_children():
+                w.destroy()
+            ttk.Label(top, text=f"{cfg.production_resource_name} available: {fmt(c.prod)}", font=("Segoe UI", 11, "bold")).pack(anchor="w")
+
+        ttk.Button(btn_row, text="Buy Selected", command=buy_selected).pack(side="left")
+        ttk.Button(btn_row, text="Close", command=win.destroy).pack(side="right")
+
+    def open_tech_shop(self):
+        c = self.civ
+        assert c is not None
+        cfg = c.cfg
+
+        win = tk.Toplevel(self)
+        win.title("Tech / Skill Tree")
+        win.geometry("640x420")
+
+        top = ttk.Frame(win, padding=10)
+        top.pack(fill="x")
+        ttk.Label(top, text=f"{cfg.culture_resource_name} available: {fmt(c.culture)}", font=("Segoe UI", 11, "bold")).pack(anchor="w")
+
+        cols = ("Name", "Cost", "Unlocked")
+        tree = ttk.Treeview(win, columns=cols, show="headings", height=12)
+        for col in cols:
+            tree.heading(col, text=col)
+            tree.column(col, width=220 if col == "Name" else 90, anchor="w")
+        tree.pack(fill="both", expand=True, padx=10, pady=10)
+
+        desc = tk.Text(win, height=5, wrap="word")
+        desc.pack(fill="x", padx=10, pady=(0, 10))
+        desc.configure(state="disabled")
+
+        for name, t in self.techs.items():
+            unlocked = "Yes" if c.techs.get(name, False) else "No"
+            tree.insert("", "end", iid=name, values=(t.name, t.cost, unlocked))
+
+        def on_select(_):
+            sel = tree.selection()
+            if not sel:
+                return
+            name = sel[0]
+            t = self.techs[name]
+            text = f"{t.desc}\n\nBonuses: {t.yield_bonus or '(none)'}\nMultipliers: {t.yield_mult or '(none)'}"
+            desc.configure(state="normal")
+            desc.delete("1.0", "end")
+            desc.insert("1.0", text)
+            desc.configure(state="disabled")
+
+        tree.bind("<<TreeviewSelect>>", on_select)
+
+        btn_row = ttk.Frame(win, padding=10)
+        btn_row.pack(fill="x")
+
+        def unlock_selected():
+            sel = tree.selection()
+            if not sel:
+                return
+            name = sel[0]
+            t = self.techs[name]
+            if c.techs.get(name, False):
+                return
+            if c.culture < t.cost:
+                messagebox.showwarning("Not enough", f"Not enough {cfg.culture_resource_name}.")
+                return
+            c.culture -= t.cost
+            c.techs[name] = True
+            tree.set(name, "Unlocked", "Yes")
+            self.refresh_ui()
+            self.log(f"Unlocked: {t.name} (-{t.cost} {cfg.culture_resource_name}).")
+
+            for w in top.winfo_children():
+                w.destroy()
+            ttk.Label(top, text=f"{cfg.culture_resource_name} available: {fmt(c.culture)}", font=("Segoe UI", 11, "bold")).pack(anchor="w")
+
+        ttk.Button(btn_row, text="Unlock Selected", command=unlock_selected).pack(side="left")
+        ttk.Button(btn_row, text="Close", command=win.destroy).pack(side="right")
+
+    # ---------- Turn advance ----------
+    def end_turn(self):
+        c = self.civ
+        assert c is not None
+
+        # sync workers from UI and normalize if needed
+        c.workers = {job: int(self.job_spin_vars[job].get()) for job in c.cfg.jobs.keys()}
+        c.normalize_workers_to_pop()
+        for job, v in self.job_spin_vars.items():
+            v.set(c.workers.get(job, 0))
+
+        # roll a small “flavor event” with some probability based on threat
+        ev = self.maybe_flavor_event()
+
+        msg = c.end_turn_update(self.buildings, self.techs, self.rng)
+
+        if ev:
+            self.log(f"[Event] {ev}")
+        if msg["event"]:
+            self.log(f"[Population] {msg['event']}")
+        self.log(msg["summary"])
+
+        self.refresh_ui()
+
+        result = check_victory(c)
+        if result:
+            if result.startswith("WIN"):
+                messagebox.showinfo("Result", result)
+            else:
+                messagebox.showwarning("Result", result)
+
+    def maybe_flavor_event(self) -> str:
+        """UI-side event flavor that changes nothing major (backend still has stochastic threat drift)."""
+        c = self.civ
+        assert c is not None
+        cfg = c.cfg
+        p = min(0.40, 0.10 + 0.015 * c.threat)
+        if self.rng.random() > p:
+            return ""
+
+        if cfg.civ_name == "Rickover Civilization":
+            pool = [
+                "A rival program posts a flashy announcement; pressure rises in the air.",
+                "A mentor emails 'quick call?' and your nerds lock in.",
+                "A student asks 'is RSI worth it?' and you deliver a legendary pitch.",
+            ]
+        else:
+            pool = [
+                "Traders arrive with rumors of conflict beyond the hills.",
+                "A storyteller performs; spirits lift across the village.",
+                "A scout reports a safer route for supplies.",
+            ]
+        return self.rng.choice(pool)
+
+
+if __name__ == "__main__":
+    app = GameGUI()
+    app.mainloop()
