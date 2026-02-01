@@ -1,0 +1,2368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rickover's Chronicles - Build GAI Before It's Too Late</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Rajdhani:wght@400;500;600;700&family=Exo+2:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; }
+        body { font-family: 'Exo 2', sans-serif; background: linear-gradient(135deg, #0a3270 0%, #0e4496 50%, #1565c0 100%); color: #ffffff; }
+        h1, h2, h3, h4, .panel-title, .turn-badge, .resource-value, .action-btn { font-family: 'Rajdhani', sans-serif; font-weight: 600; letter-spacing: 0.5px; }
+        .game-title { font-family: 'Cinzel', serif; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; }
+        .game-container { height: 100vh; display: flex; flex-direction: column; padding: 8px; max-width: 1400px; margin: 0 auto; position: relative; }
+
+        .header { text-align: center; padding: 8px 15px; background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 12px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0; position: relative; z-index: 10; }
+        .header .game-title { font-size: 1.4em; color: #ffffff; }
+        .header .subtitle { color: rgba(255,255,255,0.5); font-size: 0.6em; letter-spacing: 2px; text-transform: uppercase; }
+        .header-row { display: flex; justify-content: center; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .turn-badge { background: linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.1)); padding: 5px 14px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.3); font-size: 0.8em; text-transform: uppercase; }
+        .turn-badge.warning { background: linear-gradient(135deg, rgba(248,113,113,0.3), rgba(248,113,113,0.2)); border-color: #f87171; }
+        .player-badge { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #000; padding: 4px 10px; border-radius: 15px; font-size: 0.7em; font-weight: 600; }
+        .fullscreen-btn { background: linear-gradient(135deg, #ffffff, #e0e0e0); color: #0e4496; border: none; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.75em; }
+        .music-controls { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 6px; }
+        .music-btn { background: rgba(255,255,255,0.2); color: #fff; border: none; width: 24px; height: 24px; border-radius: 4px; cursor: pointer; font-size: 0.8em; display: flex; align-items: center; justify-content: center; }
+        .music-btn:hover { background: rgba(255,255,255,0.4); }
+        .volume-slider { width: 60px; height: 4px; -webkit-appearance: none; background: rgba(255,255,255,0.3); border-radius: 2px; cursor: pointer; }
+        .volume-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; background: #fbbf24; border-radius: 50%; cursor: pointer; }
+        .volume-slider::-moz-range-thumb { width: 12px; height: 12px; background: #fbbf24; border-radius: 50%; cursor: pointer; border: none; }
+
+        .resource-bar { display: flex; gap: 6px; margin-bottom: 8px; justify-content: center; flex-wrap: wrap; flex-shrink: 0; position: relative; z-index: 10; }
+        .resource-card { background: rgba(255,255,255,0.1); backdrop-filter: blur(5px); padding: 5px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); display: flex; align-items: center; gap: 6px; transition: all 0.3s; }
+        .resource-card.locked { opacity: 0.3; pointer-events: none; }
+        .resource-icon { font-size: 1.1em; }
+        .resource-name { font-size: 0.6em; color: rgba(255,255,255,0.6); text-transform: uppercase; }
+        .resource-value { font-size: 1em; font-weight: 700; }
+
+        .world-panel { border-radius: 12px; border: 2px solid rgba(255,255,255,0.3); flex: 1; min-height: 140px; position: relative; overflow: hidden; margin-bottom: 8px; }
+        .sky { position: absolute; top: 0; left: 0; right: 0; height: 55%; background: linear-gradient(180deg, #1e88e5 0%, #64b5f6 60%, #90caf9 100%); }
+        .cloud { position: absolute; background: rgba(255,255,255,0.9); border-radius: 50px; animation: float-cloud linear infinite; }
+        .cloud::before, .cloud::after { content: ''; position: absolute; background: rgba(255,255,255,0.9); border-radius: 50%; }
+        .cloud-1 { width: 50px; height: 16px; top: 8%; animation-duration: 25s; }
+        .cloud-1::before { width: 20px; height: 20px; top: -10px; left: 8px; }
+        .cloud-1::after { width: 28px; height: 24px; top: -12px; left: 20px; }
+        .cloud-2 { width: 60px; height: 20px; top: 18%; animation-duration: 35s; animation-delay: -10s; }
+        .cloud-2::before { width: 25px; height: 22px; top: -11px; left: 12px; }
+        .cloud-2::after { width: 35px; height: 28px; top: -14px; left: 28px; }
+        @keyframes float-cloud { 0% { left: -15%; } 100% { left: 105%; } }
+        .sun { position: absolute; top: 5%; right: 10%; width: 35px; height: 35px; background: radial-gradient(circle, #ffeb3b 0%, #ffc107 50%, #ff9800 100%); border-radius: 50%; box-shadow: 0 0 25px #ffeb3b; }
+        .ground { position: absolute; bottom: 0; left: 0; right: 0; height: 45%; background: linear-gradient(180deg, #4caf50 0%, #388e3c 30%, #2e7d32 100%); }
+        .path { position: absolute; bottom: 0; left: 0; right: 0; height: 12%; background: linear-gradient(180deg, #8d6e63 0%, #6d4c41 100%); }
+        .buildings-container { position: absolute; bottom: 12%; left: 0; right: 0; height: 40%; display: flex; justify-content: space-around; align-items: flex-end; padding: 0 2%; }
+        .building-structure { display: flex; flex-direction: column; align-items: center; transition: all 0.5s; opacity: 0.2; transform: scale(0.85); }
+        .building-structure.built { opacity: 1; transform: scale(1); }
+        .building-structure.locked { display: none; }
+        .building-icon { font-size: 1.8em; filter: drop-shadow(2px 3px 3px rgba(0,0,0,0.4)); }
+        .building-structure.built .building-icon { animation: building-idle 2s ease-in-out infinite; }
+        @keyframes building-idle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+        .building-label { font-family: 'Rajdhani', sans-serif; font-size: 0.5em; font-weight: 600; color: #fff; text-transform: uppercase; background: rgba(0,0,0,0.7); padding: 2px 5px; border-radius: 3px; margin-top: 2px; }
+        .building-structure.built .building-label { background: linear-gradient(135deg, #0e4496, #1565c0); }
+
+        .workers-area { position: absolute; bottom: 12%; left: 0; right: 0; height: 30%; pointer-events: none; }
+        .worker { position: absolute; font-size: 1.2em; transition: left 1.5s ease-in-out, bottom 0.8s ease-in-out; filter: drop-shadow(1px 2px 2px rgba(0,0,0,0.3)); }
+        .worker.walking { animation: walk 0.3s ease-in-out infinite; }
+        .worker.idle { animation: idle 1.5s ease-in-out infinite; }
+        .worker.working { animation: work 0.8s ease-in-out infinite; }
+        .worker.walking-left { animation: walk-left 0.3s ease-in-out infinite; }
+        .worker.walking-right { animation: walk-right 0.3s ease-in-out infinite; }
+        @keyframes walk { 0%, 100% { transform: translateY(0) rotate(-5deg); } 50% { transform: translateY(-6px) rotate(5deg); } }
+        @keyframes walk-left { 0%, 100% { transform: translateY(0) rotate(-5deg) scaleX(-1); } 50% { transform: translateY(-6px) rotate(5deg) scaleX(-1); } }
+        @keyframes walk-right { 0%, 100% { transform: translateY(0) rotate(-5deg); } 50% { transform: translateY(-6px) rotate(5deg); } }
+        @keyframes idle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+        @keyframes work { 0%, 100% { transform: translateY(0) scale(1); } 25% { transform: translateY(-3px) scale(1.03); } 50% { transform: translateY(0) scale(1); } 75% { transform: translateY(-2px) scale(1.02); } }
+
+        .submarine { position: absolute; font-size: 1.6em; top: 20%; animation: sail 12s linear infinite; opacity: 0; transition: opacity 0.5s; }
+        .submarine.active { opacity: 1; }
+        @keyframes sail { 0% { left: -10%; } 50% { left: 110%; } 50.01% { left: 110%; transform: scaleX(-1); } 100% { left: -10%; transform: scaleX(-1); } }
+
+        .gai-monument { position: absolute; bottom: 45%; left: 50%; transform: translateX(-50%); font-size: 3em; opacity: 0; transition: all 1s; filter: drop-shadow(0 0 20px cyan); }
+        .gai-monument.built { opacity: 1; animation: gai-glow 2s ease-in-out infinite alternate; }
+        @keyframes gai-glow { 0% { filter: drop-shadow(0 0 10px cyan); } 100% { filter: drop-shadow(0 0 30px cyan); } }
+
+        .bottom-layout { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; flex-shrink: 0; max-height: 38vh; position: relative; z-index: 10; }
+        @media (max-width: 900px) { .bottom-layout { grid-template-columns: 1fr 1fr; } }
+
+        .panel { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 10px; padding: 8px; border: 1px solid rgba(255,255,255,0.2); display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        .panel.locked::after { content: '🔒 LOCKED'; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; font-family: 'Rajdhani', sans-serif; font-size: 1em; color: rgba(255,255,255,0.5); border-radius: 10px; }
+        .panel-title { font-size: 0.85em; color: #ffffff; margin-bottom: 5px; padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.2); text-transform: uppercase; letter-spacing: 1px; }
+        .panel-content { flex: 1; overflow-y: auto; }
+
+        .job-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 6px; background: rgba(255,255,255,0.08); border-radius: 5px; margin-bottom: 4px; border-left: 3px solid rgba(255,255,255,0.5); }
+        .job-row.locked { opacity: 0.3; pointer-events: none; }
+        .job-info h4 { font-size: 0.75em; font-weight: 500; }
+        .job-yields { font-size: 0.6em; color: rgba(255,255,255,0.6); }
+        .job-controls { display: flex; align-items: center; gap: 5px; }
+        .job-controls button { width: 22px; height: 22px; border: none; border-radius: 4px; background: linear-gradient(135deg, #ffffff, #e0e0e0); color: #0e4496; font-size: 0.9em; cursor: pointer; font-weight: bold; }
+        .job-controls button:disabled { background: rgba(255,255,255,0.2); color: rgba(255,255,255,0.3); cursor: not-allowed; }
+        .job-count-input { width: 40px; text-align: center; font-size: 0.9em; font-weight: 700; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; color: #fff; padding: 2px; font-family: 'Rajdhani', sans-serif; }
+        .job-count-input:focus { outline: none; border-color: #fbbf24; background: rgba(255,255,255,0.25); }
+        .job-count-input::-webkit-inner-spin-button, .job-count-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        .job-count-input { -moz-appearance: textfield; }
+
+        .info-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; background: rgba(255,255,255,0.2); border-radius: 50%; font-size: 0.6em; cursor: help; margin-left: 5px; position: relative; color: rgba(255,255,255,0.7); }
+        .info-icon:hover { background: rgba(255,255,255,0.4); }
+        .info-tooltip { position: absolute; left: 100%; top: 50%; transform: translateY(-50%); background: rgba(10, 50, 112, 0.98); border: 2px solid #fbbf24; border-radius: 6px; padding: 4px 10px; opacity: 0; visibility: hidden; transition: all 0.2s; z-index: 100; pointer-events: none; box-shadow: 0 2px 10px rgba(0,0,0,0.4); white-space: nowrap; }
+        .info-icon:hover .info-tooltip { opacity: 1; visibility: visible; left: calc(100% + 8px); }
+        .info-tooltip::after { content: ''; position: absolute; right: 100%; top: 50%; transform: translateY(-50%); border: 6px solid transparent; border-right-color: #fbbf24; }
+        .info-tooltip-produces { font-size: 1.2em; }
+
+        .tab-container { display: flex; gap: 3px; margin-bottom: 5px; }
+        .tab-btn { padding: 4px 8px; border: none; border-radius: 4px 4px 0 0; background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); cursor: pointer; font-family: 'Rajdhani', sans-serif; font-weight: 600; font-size: 0.7em; text-transform: uppercase; }
+        .tab-btn.active { background: #ffffff; color: #0e4496; }
+        .tab-content { display: none; overflow-y: auto; flex: 1; }
+        .tab-content.active { display: block; }
+
+        .skill-tree-visual { padding: 6px 3px; }
+        .track-label { font-size: 0.6em; color: rgba(255,255,255,0.5); text-transform: uppercase; margin-bottom: 4px; text-align: center; }
+        .tree-row { display: flex; justify-content: center; gap: 6px; margin-bottom: 12px; }
+        .tree-node { background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 6px 4px; text-align: center; min-width: 60px; position: relative; cursor: pointer; transition: all 0.3s; }
+        .tree-node:hover { border-color: rgba(255,255,255,0.5); }
+        .tree-node.unlocked { border-color: #4ade80; background: rgba(74, 222, 128, 0.2); }
+        .tree-node.available { border-color: #fbbf24; box-shadow: 0 0 8px rgba(251, 191, 36, 0.3); }
+        .tree-node.locked { opacity: 0.3; pointer-events: none; }
+        .tree-node.story-locked { opacity: 0.5; border-style: dashed; }
+        .tree-node .node-icon { font-size: 1em; }
+        .tree-node .node-name { font-size: 0.5em; margin-top: 2px; }
+        .tree-node .node-cost { font-size: 0.45em; color: rgba(255,255,255,0.6); }
+        .tree-connector { position: absolute; background: rgba(255,255,255,0.2); }
+        .tree-connector.unlocked { background: #4ade80; }
+        .tree-connector.vertical { width: 2px; height: 10px; left: 50%; transform: translateX(-50%); top: -12px; }
+
+        .shop-item { display: flex; justify-content: space-between; align-items: center; padding: 6px; background: rgba(255,255,255,0.08); border-radius: 5px; margin-bottom: 4px; border: 1px solid rgba(255,255,255,0.1); }
+        .shop-item.owned { border-color: #4ade80; background: rgba(74, 222, 128, 0.1); }
+        .shop-item.locked-building { opacity: 0.6; border-color: rgba(255,255,255,0.1); }
+        .shop-item.locked-building .cost { color: #f87171; font-size: 0.55em; }
+        .shop-item h4 { font-size: 0.7em; }
+        .shop-item .desc { font-size: 0.55em; color: rgba(255,255,255,0.6); }
+        .shop-item .cost { font-size: 0.6em; color: #fbbf24; }
+        .buy-btn { padding: 4px 8px; border: none; border-radius: 4px; background: linear-gradient(135deg, #ffffff, #e0e0e0); color: #0e4496; font-size: 0.65em; cursor: pointer; font-family: 'Rajdhani', sans-serif; font-weight: 700; text-transform: uppercase; }
+        .buy-btn:disabled { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.3); cursor: not-allowed; }
+
+        .log-content { font-size: 0.65em; }
+        .log-entry { padding: 4px 5px; margin-bottom: 3px; border-radius: 4px; background: rgba(255,255,255,0.08); border-left: 3px solid rgba(255,255,255,0.4); }
+        .log-entry.event { border-color: #fbbf24; background: rgba(251, 191, 36, 0.1); }
+        .log-entry.purchase { border-color: #4ade80; background: rgba(74, 222, 128, 0.1); }
+        .log-entry.warning { border-color: #f87171; background: rgba(248, 113, 113, 0.1); }
+        .log-entry.story { border-color: #a78bfa; background: rgba(167, 139, 250, 0.1); }
+
+        .action-bar { display: flex; justify-content: center; gap: 8px; margin-top: 8px; flex-shrink: 0; position: relative; z-index: 10; }
+        .action-btn { padding: 8px 18px; border: none; border-radius: 6px; font-size: 0.85em; font-weight: 700; cursor: pointer; text-transform: uppercase; }
+        .action-btn.primary { background: linear-gradient(135deg, #ffffff, #e0e0e0); color: #0e4496; }
+        .action-btn.secondary { background: rgba(255,255,255,0.1); color: #ffffff; border: 2px solid rgba(255,255,255,0.3); }
+        .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Dialogue System */
+        .dialogue-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 1000; display: none; justify-content: center; align-items: center; padding: 20px; }
+        .dialogue-overlay.active { display: flex; }
+        .dialogue-overlay.with-highlight { background: transparent; pointer-events: none; }
+        .dialogue-overlay.with-highlight .dialogue-box { pointer-events: auto; }
+        .dialogue-overlay.position-top { align-items: flex-start; padding-top: 80px; }
+        .dialogue-overlay.position-bottom { align-items: flex-end; padding-bottom: 50px; }
+        .dialogue-overlay.position-left { justify-content: flex-start; padding-left: 20px; }
+        .dialogue-overlay.position-right { justify-content: flex-end; padding-right: 20px; }
+        .dialogue-box { display: flex; align-items: center; gap: 15px; max-width: 550px; width: 100%; }
+        .character-portrait { width: 100px; height: 100px; border-radius: 12px; border: 3px solid #fbbf24; overflow: hidden; background: #1a1a2e; flex-shrink: 0; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
+        .character-portrait img { width: 100%; height: 100%; object-fit: cover; }
+        .dialogue-content { flex: 1; background: rgba(10, 50, 112, 0.98); border-radius: 12px; padding: 15px; border: 2px solid rgba(255,255,255,0.4); position: relative; box-shadow: 0 6px 25px rgba(0,0,0,0.6); transition: background 0.3s, border-color 0.3s; }
+        .dialogue-content::before { content: ''; position: absolute; left: -10px; top: 50%; transform: translateY(-50%); border: 10px solid transparent; border-right-color: rgba(10, 50, 112, 0.98); transition: border-color 0.3s; }
+        .dialogue-box.speaker-rickover .dialogue-content { background: rgba(10, 50, 112, 0.98); border-color: #fbbf24; }
+        .dialogue-box.speaker-rickover .dialogue-content::before { border-right-color: rgba(10, 50, 112, 0.98); }
+        .dialogue-box.speaker-joann .dialogue-content { background: rgba(88, 28, 135, 0.98); border-color: #c084fc; }
+        .dialogue-box.speaker-joann .dialogue-content::before { border-right-color: rgba(88, 28, 135, 0.98); }
+        .dialogue-box.speaker-joann .speaker-name { color: #c084fc; }
+        .dialogue-box.speaker-joann .character-portrait { border-color: #c084fc; }
+        .speaker-name { font-family: 'Rajdhani', sans-serif; font-weight: 700; color: #fbbf24; font-size: 1em; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+        .dialogue-text { font-size: 0.9em; line-height: 1.5; color: #fff; min-height: 50px; }
+        .dialogue-continue { margin-top: 12px; text-align: right; display: flex; justify-content: flex-end; gap: 10px; }
+        .dialogue-continue button { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #000; border: none; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-family: 'Rajdhani', sans-serif; font-weight: 700; text-transform: uppercase; font-size: 0.9em; transition: transform 0.2s; }
+        .dialogue-continue button:hover { transform: scale(1.05); }
+        .dialogue-continue .skip-btn { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.7); font-size: 0.75em; padding: 6px 12px; }
+        .dialogue-continue .skip-btn:hover { background: rgba(255,255,255,0.25); }
+
+        /* Emergency Alert Modal */
+        .emergency-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 1003; display: none; justify-content: center; align-items: center; padding: 20px; }
+        .emergency-modal.active { display: flex; animation: emergency-flash 0.5s ease-out; }
+        @keyframes emergency-flash { 0% { background: rgba(255,0,0,0.8); } 100% { background: rgba(0,0,0,0.9); } }
+        .emergency-content { background: linear-gradient(135deg, #7f1d1d, #991b1b); border-radius: 15px; padding: 30px; max-width: 550px; border: 4px solid #f87171; text-align: center; animation: emergency-shake 0.5s ease-out; box-shadow: 0 0 50px rgba(248,113,113,0.5); }
+        @keyframes emergency-shake { 0%, 100% { transform: translateX(0); } 10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); } 20%, 40%, 60%, 80% { transform: translateX(5px); } }
+        .emergency-icon { font-size: 4em; margin-bottom: 15px; animation: emergency-pulse 1s ease-in-out infinite; }
+        @keyframes emergency-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+        .emergency-title { font-family: 'Cinzel', serif; font-size: 1.8em; color: #fbbf24; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 2px; }
+        .emergency-text { font-size: 1.1em; line-height: 1.6; margin-bottom: 20px; }
+        .emergency-btn { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #000; border: none; padding: 12px 30px; border-radius: 8px; cursor: pointer; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 1.1em; text-transform: uppercase; }
+
+        /* Random Event Modal */
+        .random-event-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 1003; display: none; justify-content: center; align-items: center; padding: 20px; }
+        .random-event-modal.active { display: flex; animation: event-appear 0.4s ease-out; }
+        @keyframes event-appear { 0% { opacity: 0; transform: scale(0.8); } 100% { opacity: 1; transform: scale(1); } }
+        .random-event-content { border-radius: 15px; padding: 30px; max-width: 550px; border: 4px solid; text-align: center; box-shadow: 0 0 50px rgba(0,0,0,0.5); }
+        .random-event-content.bad { background: linear-gradient(135deg, #7f1d1d, #991b1b); border-color: #f87171; }
+        .random-event-content.good { background: linear-gradient(135deg, #14532d, #166534); border-color: #4ade80; }
+        .random-event-content.mixed { background: linear-gradient(135deg, #78350f, #92400e); border-color: #fbbf24; }
+        .random-event-icon { font-size: 4em; margin-bottom: 15px; }
+        .random-event-title { font-family: 'Cinzel', serif; font-size: 1.6em; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 2px; }
+        .random-event-content.bad .random-event-title { color: #f87171; }
+        .random-event-content.good .random-event-title { color: #4ade80; }
+        .random-event-content.mixed .random-event-title { color: #fbbf24; }
+        .random-event-desc { font-size: 1.1em; line-height: 1.6; margin-bottom: 15px; }
+        .random-event-impact { font-size: 1em; padding: 10px; border-radius: 8px; margin-bottom: 20px; background: rgba(0,0,0,0.3); }
+        .random-event-btn { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #000; border: none; padding: 12px 30px; border-radius: 8px; cursor: pointer; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 1.1em; text-transform: uppercase; }
+
+        /* Minesweeper Modal */
+        .minesweeper-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.95); z-index: 1005; display: none; justify-content: center; align-items: center; padding: 20px; }
+        .minesweeper-modal.active { display: flex; }
+        .minesweeper-content { background: linear-gradient(135deg, #1a1a2e, #16213e); border-radius: 15px; padding: 25px; border: 3px solid #fbbf24; text-align: center; max-width: 500px; }
+        .minesweeper-title { font-family: 'Cinzel', serif; font-size: 1.5em; color: #fbbf24; margin-bottom: 10px; }
+        .minesweeper-desc { font-size: 0.95em; margin-bottom: 15px; color: rgba(255,255,255,0.8); }
+        .minesweeper-grid { display: inline-grid; gap: 2px; background: #333; padding: 8px; border-radius: 8px; margin-bottom: 15px; }
+        .mine-cell { width: 35px; height: 35px; background: linear-gradient(135deg, #4a5568, #2d3748); border: 1px solid #1a202c; border-radius: 4px; cursor: pointer; font-size: 1em; font-weight: bold; display: flex; align-items: center; justify-content: center; transition: all 0.1s; }
+        .mine-cell:hover:not(.revealed):not(.flagged) { background: linear-gradient(135deg, #5a6578, #3d4758); }
+        .mine-cell.revealed { background: #1a202c; cursor: default; }
+        .mine-cell.revealed.mine { background: #7f1d1d; }
+        .mine-cell.flagged { background: linear-gradient(135deg, #b45309, #92400e); }
+        .mine-cell.safe { color: #4ade80; }
+        .mine-cell.warn { color: #fbbf24; }
+        .mine-cell.danger { color: #f87171; }
+        .minesweeper-info { display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 15px; font-size: 1em; flex-wrap: wrap; }
+        .minesweeper-info span { background: rgba(255,255,255,0.1); padding: 5px 12px; border-radius: 6px; }
+
+        /* Explosion Effect */
+        .explosion-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1004; display: none; pointer-events: none; }
+        .explosion-overlay.active { display: block; animation: explosion-anim 1.5s ease-out forwards; }
+        @keyframes explosion-anim { 0% { background: rgba(255,100,0,0.9); } 30% { background: rgba(255,50,0,0.7); } 60% { background: rgba(100,0,0,0.5); } 100% { background: transparent; } }
+        .explosion-particles { position: absolute; top: 50%; left: 50%; }
+        .explosion-particle { position: absolute; font-size: 2em; animation: particle-fly 1s ease-out forwards; }
+        @keyframes particle-fly { 0% { opacity: 1; transform: translate(0, 0) scale(1); } 100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.3); } }
+
+        /* Confirm Modal */
+        .confirm-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 1006; display: none; justify-content: center; align-items: center; padding: 20px; }
+        .confirm-modal.active { display: flex; }
+        .confirm-content { background: linear-gradient(135deg, #0a3270, #0e4496); border-radius: 12px; padding: 25px; border: 2px solid rgba(255,255,255,0.3); text-align: center; max-width: 400px; }
+        .confirm-title { font-family: 'Cinzel', serif; font-size: 1.4em; color: #fbbf24; margin-bottom: 15px; }
+        .confirm-text { font-size: 1em; margin-bottom: 20px; }
+        .confirm-buttons { display: flex; gap: 15px; justify-content: center; }
+        .confirm-btn { padding: 10px 25px; border: none; border-radius: 6px; cursor: pointer; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 1em; text-transform: uppercase; }
+        .confirm-btn.yes { background: linear-gradient(135deg, #f87171, #ef4444); color: #fff; }
+        .confirm-btn.no { background: linear-gradient(135deg, #4ade80, #22c55e); color: #000; }
+
+        /* Wordle Modal */
+        .wordle-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.95); z-index: 1007; display: none; justify-content: center; align-items: center; padding: 20px; }
+        .wordle-modal.active { display: flex; }
+        .wordle-content { background: linear-gradient(135deg, #1a1a2e, #16213e); border-radius: 15px; padding: 25px; border: 3px solid #fbbf24; text-align: center; max-width: 400px; }
+        .wordle-title { font-family: 'Cinzel', serif; font-size: 1.5em; color: #fbbf24; margin-bottom: 10px; }
+        .wordle-desc { font-size: 0.9em; margin-bottom: 15px; color: rgba(255,255,255,0.8); }
+        .wordle-grid { display: grid; grid-template-rows: repeat(6, 1fr); gap: 5px; margin-bottom: 15px; }
+        .wordle-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+        .wordle-cell { width: 50px; height: 50px; border: 2px solid #3a3a4c; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 1.8em; font-weight: bold; text-transform: uppercase; background: transparent; transition: all 0.3s; }
+        .wordle-cell.filled { border-color: #565672; animation: pop 0.1s; }
+        .wordle-cell.correct { background: #538d4e; border-color: #538d4e; }
+        .wordle-cell.present { background: #b59f3b; border-color: #b59f3b; }
+        .wordle-cell.absent { background: #3a3a4c; border-color: #3a3a4c; }
+        @keyframes pop { 50% { transform: scale(1.1); } }
+        @keyframes flip { 0% { transform: rotateX(0); } 50% { transform: rotateX(90deg); } 100% { transform: rotateX(0); } }
+        .wordle-cell.flip { animation: flip 0.5s; }
+        .wordle-keyboard { display: flex; flex-direction: column; gap: 6px; }
+        .wordle-keyboard-row { display: flex; justify-content: center; gap: 4px; }
+        .wordle-key { min-width: 30px; height: 45px; border: none; border-radius: 4px; background: #818384; color: #fff; font-weight: bold; font-size: 0.85em; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+        .wordle-key:hover { background: #a0a0a0; }
+        .wordle-key.wide { min-width: 55px; font-size: 0.7em; }
+        .wordle-key.correct { background: #538d4e; }
+        .wordle-key.present { background: #b59f3b; }
+        .wordle-key.absent { background: #3a3a4c; }
+        .wordle-status { margin: 10px 0; font-size: 1.1em; min-height: 30px; }
+
+        /* Crossy Road Modal */
+        .crossy-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.95); z-index: 1007; display: none; justify-content: center; align-items: center; padding: 20px; flex-direction: column; }
+        .crossy-modal.active { display: flex; }
+        .crossy-content { background: linear-gradient(135deg, #1a1a2e, #16213e); border-radius: 15px; padding: 25px; border: 3px solid #4ade80; text-align: center; max-width: 500px; }
+        .crossy-title { font-family: 'Cinzel', serif; font-size: 1.5em; color: #4ade80; margin-bottom: 10px; }
+        .crossy-desc { font-size: 0.9em; margin-bottom: 15px; color: rgba(255,255,255,0.8); }
+        .crossy-bet-section { background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        .crossy-bet-label { font-size: 0.9em; margin-bottom: 8px; }
+        .crossy-bet-input { width: 100px; padding: 8px; font-size: 1.2em; text-align: center; border: 2px solid #4ade80; border-radius: 6px; background: rgba(0,0,0,0.5); color: #fff; }
+        .crossy-bet-max { font-size: 0.8em; color: rgba(255,255,255,0.6); margin-top: 5px; }
+        .crossy-start-btn { background: linear-gradient(135deg, #4ade80, #22c55e); color: #000; border: none; padding: 12px 30px; border-radius: 8px; cursor: pointer; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 1.1em; text-transform: uppercase; margin-top: 10px; }
+        .crossy-game-area { position: relative; width: 320px; height: 400px; background: #2d5a27; border: 3px solid #1a3a17; border-radius: 8px; overflow: hidden; margin: 0 auto 15px; }
+        .crossy-lane { position: absolute; width: 100%; height: 40px; }
+        .crossy-lane.road { background: #3d3d3d; border-top: 2px dashed #ffff00; border-bottom: 2px dashed #ffff00; }
+        .crossy-lane.water { background: #1e90ff; }
+        .crossy-lane.grass { background: #2d5a27; }
+        .crossy-lane.safe { background: #4a7c3f; }
+        .crossy-obstacle { position: absolute; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 1.5em; }
+        .crossy-player { position: absolute; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 1.5em; z-index: 10; transition: top 0.15s, left 0.15s; }
+        .crossy-info { display: flex; justify-content: center; gap: 20px; margin-bottom: 10px; font-size: 1em; }
+        .crossy-info span { background: rgba(255,255,255,0.1); padding: 5px 12px; border-radius: 6px; }
+        .crossy-controls { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
+        .crossy-controls button { width: 50px; height: 50px; font-size: 1.5em; border: none; border-radius: 8px; background: rgba(255,255,255,0.2); color: #fff; cursor: pointer; }
+        .crossy-controls button:hover { background: rgba(255,255,255,0.3); }
+        .crossy-status { margin-top: 10px; font-size: 1.1em; min-height: 30px; }
+
+        /* Event Choice Modal */
+        .event-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 1001; display: none; justify-content: center; align-items: center; padding: 20px; }
+        .event-modal.active { display: flex; }
+        .event-content { background: linear-gradient(135deg, #0a3270, #0e4496); border-radius: 12px; padding: 25px; max-width: 500px; border: 2px solid rgba(255,255,255,0.3); text-align: center; }
+        .event-title { font-family: 'Cinzel', serif; font-size: 1.4em; color: #fbbf24; margin-bottom: 15px; }
+        .event-desc { font-size: 0.95em; margin-bottom: 20px; line-height: 1.5; }
+        .event-choices { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; }
+        .event-choice { padding: 12px 25px; border: none; border-radius: 8px; cursor: pointer; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 0.9em; text-transform: uppercase; transition: all 0.3s; }
+        .event-choice.yes { background: linear-gradient(135deg, #4ade80, #22c55e); color: #000; }
+        .event-choice.no { background: linear-gradient(135deg, #f87171, #ef4444); color: #fff; }
+        .event-choice:hover { transform: scale(1.05); }
+
+        .highlight-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 999; display: none; }
+        .highlight-overlay.active { display: block; }
+        .highlight-box { position: absolute; border: 4px solid #fbbf24; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.35), 0 0 30px #fbbf24, inset 0 0 20px rgba(251,191,36,0.2); animation: pulse-highlight 1.5s ease-in-out infinite; background: rgba(251,191,36,0.05); }
+        @keyframes pulse-highlight { 0%, 100% { box-shadow: 0 0 0 9999px rgba(0,0,0,0.35), 0 0 30px #fbbf24, inset 0 0 20px rgba(251,191,36,0.2); } 50% { box-shadow: 0 0 0 9999px rgba(0,0,0,0.35), 0 0 50px #fbbf24, inset 0 0 30px rgba(251,191,36,0.3); } }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; z-index: 1002; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: linear-gradient(135deg, #0a3270, #0e4496); padding: 25px; border-radius: 14px; text-align: center; max-width: 400px; border: 2px solid rgba(255,255,255,0.3); }
+        .modal.victory { border-color: #4ade80; }
+        .modal.victory h2 { color: #4ade80; }
+        .modal.defeat { border-color: #f87171; }
+        .modal.defeat h2 { color: #f87171; }
+        .modal h2 { font-family: 'Cinzel', serif; font-size: 1.6em; margin-bottom: 12px; text-transform: uppercase; }
+        .modal p { margin-bottom: 18px; color: rgba(255,255,255,0.8); }
+
+        .start-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; padding: 20px; }
+        .start-screen .game-title { font-size: 2.2em; color: #ffffff; margin-bottom: 8px; }
+        .start-screen .tagline { color: rgba(255,255,255,0.5); margin-bottom: 8px; font-size: 0.75em; letter-spacing: 3px; text-transform: uppercase; }
+        .start-screen .tagline-main { color: rgba(255,255,255,0.8); margin-bottom: 20px; font-size: 0.95em; }
+        .start-screen .instructions { max-width: 420px; text-align: left; background: rgba(255,255,255,0.1); padding: 18px; border-radius: 10px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.2); }
+        .start-screen .instructions h3 { color: #ffffff; margin-bottom: 8px; font-size: 0.95em; text-transform: uppercase; }
+        .start-screen .instructions li { padding: 4px 0; padding-left: 16px; position: relative; list-style: none; font-size: 0.85em; }
+        .start-screen .instructions li:before { content: "▸"; position: absolute; left: 0; color: #4ade80; }
+        .game-screen { display: none; height: 100%; }
+        .game-screen.active { display: flex; flex-direction: column; }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.1); border-radius: 2px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 2px; }
+    </style>
+</head>
+<body>
+    <!-- Game Sounds -->
+    <audio id="sndBgMusic" src="game sounds/bg music.mp3" preload="auto" loop></audio>
+    <audio id="sndButton" src="game sounds/button-press-2-386176.mp3" preload="auto"></audio>
+    <audio id="sndWin" src="game sounds/trumpets-47123.mp3" preload="auto"></audio>
+    <audio id="sndLose" src="game sounds/nuclear-explosion-386181.mp3" preload="auto"></audio>
+    <audio id="sndBuilding" src="game sounds/hammering-nail-96677_OjcAKnsG.mp3" preload="auto"></audio>
+    <audio id="sndNewPerson" src="game sounds/welcome-traveler-97167_VLkGprfP.mp3" preload="auto"></audio>
+    <audio id="sndMoney" src="game sounds/money.mp3" preload="auto"></audio>
+    <audio id="sndTech" src="game sounds/rustling-paper-46380_mRPMrBrB.mp3" preload="auto"></audio>
+    <audio id="sndNarration" src="game sounds/cartoon-phone-voice-88637.mp3" preload="auto"></audio>
+
+    <div class="game-container">
+        <div class="start-screen" id="startScreen">
+            <span class="game-title">Rickover's Chronicles</span>
+            <p class="tagline">Center for Excellence in Education</p>
+            <p class="tagline-main">Build Generalized AI Before America Destroys Itself</p>
+            <div class="instructions">
+                <h3>The Year is 1982</h3>
+                <ul>
+                    <li>Admiral Hyman G. Rickover runs the Nuclear Navy</li>
+                    <li>You are the <b>Head Intern</b></li>
+                    <li>Build <b>Generalized AI</b> by turn 75 to save America</li>
+                    <li>If you fail, the government nukes itself</li>
+                </ul>
+            </div>
+            <button class="action-btn primary" onclick="startGame()">Begin Your Story</button>
+        </div>
+
+        <div class="game-screen" id="gameScreen">
+            <div class="header">
+                <div class="header-row">
+                    <div style="display: flex; flex-direction: column; align-items: center;">
+                        <span class="game-title">Rickover's Chronicles</span>
+                        <span class="subtitle">Center for Excellence in Education</span>
+                    </div>
+                    <span class="player-badge">Head Intern</span>
+                    <div class="turn-badge" id="turnBadge">Turn <span id="turnNum">1</span>/75</div>
+                    <div class="turn-badge" id="turnsLeftBadge"><span id="turnsLeft">75</span> Left</div>
+                    <div class="music-controls">
+                        <button class="music-btn" id="musicToggle" onclick="toggleMusic()" title="Play/Stop Music">🔊</button>
+                        <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="30" onchange="setVolume(this.value)" title="Volume">
+                    </div>
+                    <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶</button>
+                </div>
+            </div>
+
+            <div class="resource-bar">
+                <div class="resource-card" id="resNerds"><span class="resource-icon">🎓</span><div><div class="resource-name">Nerds</div><div class="resource-value"><span id="nerdsCount">10</span>/120</div></div></div>
+                <div class="resource-card" id="resMoney"><span class="resource-icon">💰</span><div><div class="resource-name">Money</div><div class="resource-value" id="moneyCount">0.0</div></div></div>
+                <div class="resource-card locked" id="resIsotopes"><span class="resource-icon">⚛️</span><div><div class="resource-name">Isotopes</div><div class="resource-value" id="isotopesCount">0.0</div></div></div>
+                <div class="resource-card" id="resResearch"><span class="resource-icon">📜</span><div><div class="resource-name">Papers</div><div class="resource-value" id="researchCount">5.0</div></div></div>
+            </div>
+
+            <div class="world-panel" id="worldPanel">
+                <div class="sky"><div class="sun"></div><div class="cloud cloud-1"></div><div class="cloud cloud-2"></div></div>
+                <div class="submarine" id="submarine">🚢</div>
+                <div class="ground"></div>
+                <div class="path"></div>
+                <div class="buildings-container" id="buildingsContainer"></div>
+                <div class="gai-monument" id="gaiMonument">🤖</div>
+                <div class="workers-area" id="workersArea"></div>
+            </div>
+
+            <div class="bottom-layout">
+                <div class="panel" id="jobsPanel">
+                    <div class="panel-title">🧑‍💼 Depts <span style="opacity:0.7">(Free: <span id="unassigned">0</span>)</span></div>
+                    <div class="panel-content" id="jobGrid"></div>
+                </div>
+
+                <div class="panel" id="techPanel">
+                    <div class="tab-container">
+                        <button class="tab-btn active" onclick="switchTab('buildings')">🏗️ Build</button>
+                        <button class="tab-btn" onclick="switchTab('tech')">🌳 Tech</button>
+                    </div>
+                    <div class="tab-content active" id="buildingsTab"></div>
+                    <div class="tab-content" id="techTab"></div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-title">📋 Log</div>
+                    <div class="panel-content log-content" id="eventLog">
+                        <div class="log-entry story">Year 1982 - Nuclear Navy HQ</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="action-bar">
+                <button class="action-btn secondary" onclick="showYieldPreview()">📊</button>
+                <button class="action-btn primary" id="endTurnBtn" onclick="endTurn()">⏭️ End Turn</button>
+                <button class="action-btn secondary" onclick="restartGame()">🔄</button>
+            </div>
+        </div>
+
+        <div class="dialogue-overlay" id="dialogueOverlay">
+            <div class="dialogue-box">
+                <div class="character-portrait" id="characterPortrait"><img src="pictures/rickover.png" alt="Character" id="characterImg"></div>
+                <div class="dialogue-content">
+                    <div class="speaker-name" id="speakerName">Admiral Rickover</div>
+                    <div class="dialogue-text" id="dialogueText"></div>
+                    <div class="dialogue-continue">
+                        <button class="skip-btn" id="skipBtn" onclick="skipInstructions()">Skip Instructions</button>
+                        <button onclick="advanceDialogue()">Continue →</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="event-modal" id="eventModal">
+            <div class="event-content">
+                <div class="event-title" id="eventTitle">Event</div>
+                <div class="event-desc" id="eventDesc"></div>
+                <div class="event-choices" id="eventChoices"></div>
+            </div>
+        </div>
+
+        <div class="highlight-overlay" id="highlightOverlay"><div class="highlight-box" id="highlightBox"></div></div>
+
+        <div class="emergency-modal" id="emergencyModal">
+            <div class="emergency-content">
+                <div class="emergency-icon">🚨</div>
+                <div class="emergency-title" id="emergencyTitle">BREAKING NEWS</div>
+                <div class="emergency-text" id="emergencyText"></div>
+                <button class="emergency-btn" onclick="closeEmergency()">Continue</button>
+            </div>
+        </div>
+
+        <div class="random-event-modal" id="randomEventModal">
+            <div class="random-event-content" id="randomEventContent">
+                <div class="random-event-icon" id="randomEventIcon">📰</div>
+                <div class="random-event-title" id="randomEventTitle">EVENT</div>
+                <div class="random-event-desc" id="randomEventDesc"></div>
+                <div class="random-event-impact" id="randomEventImpact"></div>
+                <button class="random-event-btn" onclick="closeRandomEvent()">Continue</button>
+            </div>
+        </div>
+
+        <div class="minesweeper-modal" id="minesweeperModal">
+            <div class="minesweeper-content">
+                <div class="minesweeper-title">⚠️ NUCLEAR SAFETY TEST ⚠️</div>
+                <div class="minesweeper-desc">Before activating GAI, you must pass the nuclear safety protocol!<br>Clear the minefield without hitting any mines. Right-click to flag.</div>
+                <div class="minesweeper-info">
+                    <span>💣 Mines: <span id="mineCount">10</span></span>
+                    <span>🚩 Flags: <span id="flagCount">0</span></span>
+                </div>
+                <div class="minesweeper-grid" id="mineGrid"></div>
+                <div id="mineStatus" style="margin-top:10px;font-size:1.1em;"></div>
+            </div>
+        </div>
+
+        <div class="explosion-overlay" id="explosionOverlay">
+            <div class="explosion-particles" id="explosionParticles"></div>
+        </div>
+
+        <div class="confirm-modal" id="confirmModal">
+            <div class="confirm-content">
+                <div class="confirm-title" id="confirmTitle">Are you sure?</div>
+                <div class="confirm-text" id="confirmText">This action cannot be undone.</div>
+                <div class="confirm-buttons">
+                    <button class="confirm-btn yes" onclick="confirmAction(true)">Yes, Reset</button>
+                    <button class="confirm-btn no" onclick="confirmAction(false)">No, Keep Playing</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="wordle-modal" id="wordleModal">
+            <div class="wordle-content">
+                <div class="wordle-title">📝 KANTROWITZ CHALLENGE 📝</div>
+                <div class="wordle-desc">Mark Kantrowitz tests your vocabulary!<br>Guess the 5-letter RSI-themed word in 6 tries.</div>
+                <div class="wordle-grid" id="wordleGrid"></div>
+                <div class="wordle-status" id="wordleStatus"></div>
+                <div class="wordle-keyboard" id="wordleKeyboard"></div>
+            </div>
+        </div>
+
+        <div class="crossy-modal" id="crossyModal">
+            <div class="crossy-content" id="crossyContent">
+                <div class="crossy-title">🐔 CHICKEN CROSSING 🐔</div>
+                <div class="crossy-desc">Help the chicken cross! Survive 20 steps to break even.<br>Each step earns 5% of your initial bet. Lose before 20 steps = lose everything!</div>
+                <div class="crossy-bet-section" id="crossyBetSection">
+                    <div class="crossy-bet-label">💰 Place your bet:</div>
+                    <input type="number" class="crossy-bet-input" id="crossyBetInput" min="1" value="10">
+                    <div class="crossy-bet-max">Max bet: $<span id="crossyMaxBet">0</span></div>
+                    <button class="crossy-start-btn" onclick="startCrossyGame()">Start Crossing!</button>
+                </div>
+                <div id="crossyGameSection" style="display:none;">
+                    <div class="crossy-info">
+                        <span>🐔 Steps: <span id="crossySteps">0</span> <small>(20 to safety, 60 max)</small></span>
+                        <span>💰 Earnings: $<span id="crossyEarnings">0</span></span>
+                        <span>🎯 Bet: $<span id="crossyBetDisplay">0</span></span>
+                    </div>
+                    <div class="crossy-game-area" id="crossyGameArea"></div>
+                    <div class="crossy-controls">
+                        <button onclick="moveChicken('up')">⬆️</button>
+                        <button onclick="moveChicken('left')">⬅️</button>
+                        <button onclick="moveChicken('down')">⬇️</button>
+                        <button onclick="moveChicken('right')">➡️</button>
+                        <button onclick="cashOutCrossy()" style="background:#4ade80;color:#000;width:auto;padding:0 15px;">💰 Cash Out</button>
+                    </div>
+                    <div class="crossy-status" id="crossyStatus">Use arrow keys or buttons to move!</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay" id="modalOverlay">
+            <div class="modal" id="gameModal">
+                <h2 id="modalTitle">Victory!</h2>
+                <p id="modalMessage"></p>
+                <button class="action-btn primary" onclick="restartGame()">Play Again</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sound system
+        const sounds = {
+            bgMusic: document.getElementById('sndBgMusic'),
+            button: document.getElementById('sndButton'),
+            win: document.getElementById('sndWin'),
+            lose: document.getElementById('sndLose'),
+            building: document.getElementById('sndBuilding'),
+            newPerson: document.getElementById('sndNewPerson'),
+            money: document.getElementById('sndMoney'),
+            tech: document.getElementById('sndTech'),
+            narration: document.getElementById('sndNarration')
+        };
+
+        let musicPlaying = false;
+        let currentVolume = 0.3; // Global volume for all sounds
+
+        function startBgMusic() {
+            if (sounds.bgMusic) {
+                sounds.bgMusic.volume = currentVolume;
+                sounds.bgMusic.play().catch(() => {});
+                musicPlaying = true;
+                updateMusicButton();
+            }
+        }
+
+        function stopBgMusic() {
+            if (sounds.bgMusic) {
+                sounds.bgMusic.pause();
+                sounds.bgMusic.currentTime = 0;
+                musicPlaying = false;
+                updateMusicButton();
+            }
+        }
+
+        function toggleMusic() {
+            if (musicPlaying) {
+                sounds.bgMusic.pause();
+                musicPlaying = false;
+            } else {
+                sounds.bgMusic.play().catch(() => {});
+                musicPlaying = true;
+            }
+            updateMusicButton();
+        }
+
+        function setVolume(value) {
+            currentVolume = value / 100;
+            // Apply volume to all sounds
+            Object.values(sounds).forEach(snd => {
+                if (snd) snd.volume = currentVolume;
+            });
+        }
+
+        function updateMusicButton() {
+            const btn = document.getElementById('musicToggle');
+            if (btn) {
+                btn.textContent = musicPlaying ? '🔊' : '🔇';
+            }
+        }
+
+        function playSound(name) {
+            const snd = sounds[name];
+            if (snd) {
+                snd.volume = currentVolume;
+                snd.currentTime = 0;
+                snd.play().catch(() => {}); // Ignore autoplay errors
+            }
+        }
+
+        // Add button click sounds to all buttons
+        document.addEventListener('click', (e) => {
+            if (e.target.matches('button')) {
+                playSound('button');
+            }
+        });
+
+        const G = {
+            turn: 1, maxTurn: 75,
+            pop: 10, money: 0, isotopes: 0, research: 5,
+            workers: {}, buildings: {}, techs: {},
+            flatBonus: {}, multBonus: {},
+            workerElements: [],
+            storyPhase: 'tutorial', narrator: 'rickover',
+            unlockedDepts: ['Fundraisers'], unlockedResources: ['money', 'research'],
+            techTreeUnlocked: false, joannUnlocked: false,
+            dialogueQueue: [], currentDialogue: 0, pendingAction: null,
+            waitingForAction: false, requiredAction: null,
+            frisbeeActive: false, covidActive: false,
+            occurredEvents: [], occurredChoiceEvents: [],
+            tutorialSkipped: false
+        };
+
+        const jobs = {
+            "Fundraisers": { yields: { money: 2.5 }, icon: "🤵", building: "Office", unlocked: true, desc: "Fundraisers bring in money to keep the program running. Each one earns $2.50 per turn.", produces: "💰" },
+            "Researchers": { yields: { money: 0.5, research: 1.2 }, icon: "🔬", building: "Garage Lab", unlocked: false, desc: "Researchers write papers and conduct experiments. They generate research papers and a small income.", produces: "📜💰" },
+            "Engineers": { yields: { money: 0.3, isotopes: 1.8 }, icon: "👷", building: "Scrapyard", unlocked: false, desc: "Engineers work on nuclear technology and produce isotopes for building advanced structures.", produces: "⚛️💰" },
+            "Recruiters": { yields: { money: 0.4, research: 0.3 }, icon: "📢", building: "Alumni HQ", unlocked: false, desc: "Recruiters spread the word about the program and help attract talented students.", produces: "📜💰" }
+        };
+
+        const buildingPositions = { "Office": 12, "Garage Lab": 32, "Scrapyard": 52, "Alumni HQ": 72, "RSI": 88 };
+
+        // Buildings paid with isotopes - doubled for difficulty
+        // Buildings with tech tier requirements
+        // Tier 0: Newspaper Ads | Tier 1: Row 1 techs | Tier 2: Row 2 techs | Tier 3: Row 3 techs | Tier 4: CSAIL
+        const buildings = {
+            "Garage Lab": { cost: 20, desc: "+5% isotopes/turn", mult: { isotopes: 1.05 }, icon: "🔧", visualOnly: true, tier: 0 },
+            "USABO": { cost: 70, desc: "+15% papers/turn", mult: { research: 1.15 }, icon: "🧬", tier: 1 },
+            "Alumni Center": { cost: 90, desc: "+10% money, +10% papers", mult: { money: 1.10, research: 1.10 }, icon: "🤝", tier: 1 },
+            "RSI": { cost: 120, desc: "+20% papers/turn", mult: { research: 1.20 }, icon: "🏛️", tier: 2 },
+            "Harvard Connection": { cost: 160, desc: "+25% nerds/turn", mult: { nerds: 1.25 }, icon: "📚", tier: 2 },
+            "Submarine Lab": { cost: 200, desc: "+40% isotopes/turn", mult: { isotopes: 1.40 }, icon: "🚢", tier: 3 },
+            "MIT Connection": { cost: 260, desc: "+40% nerds/turn", mult: { nerds: 1.40 }, icon: "🎓", tier: 3 },
+            "GAI": { cost: 700, desc: "🤖 FINAL GOAL - Save America!", icon: "🤖", victory: true, tier: 4 }
+        };
+
+        // Tech tiers for building unlock requirements
+        const techTiers = {
+            0: ["Newspaper Ads"],
+            1: ["Alumni Network", "Nukes", "Joann DiGennaro", "Kathy USABO"],
+            2: ["Recommendation Letters", "Rodent Surgery", "Startups Ned Koh", "STS Formatting"],
+            3: ["Cambridge Pizza", "CRISPR", "Mark Kantrowitz"],
+            4: ["CSAIL"]
+        };
+
+        function getTechTierComplete(tier) {
+            // Check if all techs up to and including this tier are unlocked
+            for (let t = 0; t <= tier; t++) {
+                const tierTechs = techTiers[t] || [];
+                for (const tech of tierTechs) {
+                    if (!G.techs[tech]) return false;
+                }
+            }
+            return true;
+        }
+
+        function getAllBuildingsComplete() {
+            // Check if all non-GAI, non-visualOnly buildings are built
+            for (const [name, b] of Object.entries(buildings)) {
+                if (!b.victory && !b.visualOnly && G.buildings[name] === 0) return false;
+            }
+            return true;
+        }
+
+        function canBuildBuilding(name) {
+            const b = buildings[name];
+            if (G.buildings[name] > 0) return false; // Already built
+            if (G.isotopes < b.cost) return false; // Can't afford
+
+            // GAI requires all tech AND all other buildings
+            if (b.victory) {
+                return getTechTierComplete(4) && getAllBuildingsComplete();
+            }
+
+            // Regular buildings require their tech tier
+            return getTechTierComplete(b.tier);
+        }
+
+        function getBuildingLockReason(name) {
+            const b = buildings[name];
+            if (G.buildings[name] > 0) return null; // Already built
+
+            if (b.victory) {
+                if (!getTechTierComplete(4)) return "Complete ALL tech tree first";
+                if (!getAllBuildingsComplete()) return "Build all other buildings first";
+            } else {
+                if (!getTechTierComplete(b.tier)) {
+                    const tierNames = ["Newspaper Ads", "Row 1 tech", "Row 2 tech", "Row 3 tech", "All tech"];
+                    return `Requires ${tierNames[b.tier]} complete`;
+                }
+            }
+            return null;
+        }
+
+        // Tech tree based on tree.png - paid with papers - doubled for difficulty
+        // Newspaper Ads is FREE and at the very top
+        const techs = {
+            // TOP - Newspaper Ads (FREE, unlocks everything below)
+            "Newspaper Ads": { cost: 0, desc: "+20% money (FREE)", mult: { money: 1.20 }, icon: "📰", prereq: [], track: "top", tutorial: true },
+            // Support track (requires Newspaper Ads)
+            "Alumni Network": { cost: 16, desc: "+10% money", mult: { money: 1.10 }, icon: "🌐", prereq: ["Newspaper Ads"], track: "support" },
+            "Recommendation Letters": { cost: 36, desc: "+12% papers", mult: { research: 1.12 }, icon: "✉️", prereq: ["Alumni Network"], track: "support" },
+            "Cambridge Pizza": { cost: 70, desc: "+15% money, +8% papers", mult: { money: 1.15, research: 1.08 }, icon: "🍕", prereq: ["Recommendation Letters"], track: "support" },
+            // Engineering track (requires Newspaper Ads)
+            "Nukes": { cost: 20, desc: "+10% isotopes", mult: { isotopes: 1.10 }, icon: "☢️", prereq: ["Newspaper Ads"], track: "engineering" },
+            "Rodent Surgery": { cost: 44, desc: "+15% isotopes", mult: { isotopes: 1.15 }, icon: "🐁", prereq: ["Nukes"], track: "engineering" },
+            "CRISPR": { cost: 80, desc: "+18% isotopes, +8% papers", mult: { isotopes: 1.18, research: 1.08 }, icon: "🧬", prereq: ["Rodent Surgery"], track: "engineering" },
+            "CSAIL": { cost: 130, desc: "+22% isotopes, +12% papers", mult: { isotopes: 1.22, research: 1.12 }, icon: "💻", prereq: ["CRISPR"], track: "engineering" },
+            // Fundraising track (requires Newspaper Ads)
+            "Joann DiGennaro": { cost: 40, desc: "+12% money, +8% papers", mult: { money: 1.12, research: 1.08 }, icon: "👩‍💼", prereq: ["Newspaper Ads"], track: "fundraising", storyLocked: true },
+            "Startups Ned Koh": { cost: 100, desc: "+25% money, +15% isotopes", mult: { money: 1.25, isotopes: 1.15 }, icon: "🚀", prereq: ["Joann DiGennaro"], track: "fundraising" },
+            // Research track (requires Newspaper Ads)
+            "Kathy USABO": { cost: 20, desc: "+10% papers", mult: { research: 1.10 }, icon: "🔬", prereq: ["Newspaper Ads"], track: "research" },
+            "STS Formatting": { cost: 50, desc: "+12% papers", mult: { research: 1.12 }, icon: "📄", prereq: ["Kathy USABO"], track: "research" },
+            "Mark Kantrowitz": { cost: 90, desc: "+20% papers, +5% money", mult: { research: 1.20, money: 1.05 }, icon: "🏆", prereq: ["STS Formatting"], track: "research" }
+        };
+
+        // Random events (after turn 20, 25% chance)
+        const randomEvents = [
+            { name: "COVID Outbreak", icon: "🦠", desc: "A global pandemic has struck! Remote work reduces efficiency across all departments.", impact: "Isotope production permanently reduced by 20%", effect: () => { G.covidActive = true; }, condition: () => G.turn >= 38, type: "bad" },
+            { name: "John Lehman Threat", icon: "😡", desc: "Secretary John Lehman is attacking the program! He's convinced some of your staff to leave.", impact: "You lose 10% of your nerds!", effect: () => { const loss = Math.max(1, Math.floor(G.pop * 0.10)); G.pop = Math.max(1, G.pop - loss); normalizeWorkers(); }, type: "bad" },
+            { name: "Terence Tao Fields Medal", icon: "🏅", desc: "RSI alumnus Terence Tao has won the prestigious Fields Medal! This brings incredible prestige to your program.", impact: "Research paper production increased by 15%!", effect: () => { G.multBonus.research *= 1.15; }, type: "good" },
+            { name: "Feng Zhang CRISPR", icon: "🧬", desc: "Feng Zhang makes a breakthrough in CRISPR gene editing! However, controversy over patents creates complications.", impact: "Papers +10%, but Isotopes -5%", effect: () => { G.multBonus.research *= 1.10; G.multBonus.isotopes *= 0.95; }, type: "mixed" },
+            { name: "Mark Kantrowitz STS", icon: "🏆", desc: "Mark Kantrowitz places 7th in the Westinghouse Science Talent Search! Great publicity for the program.", impact: "Research paper production increased by 8%!", effect: () => { G.multBonus.research *= 1.08; }, type: "good" },
+            { name: "Jennifer Balakrishnan", icon: "📐", desc: "Jennifer Balakrishnan solves the famous 'cursed curve' problem! Mathematicians worldwide celebrate.", impact: "Research paper production increased by 12%!", effect: () => { G.multBonus.research *= 1.12; }, type: "good" },
+            { name: "IRS Audit", icon: "📋", desc: "The IRS has decided to audit CEE's finances! Legal fees and compliance costs are mounting.", impact: "Money income permanently reduced by 15%!", effect: () => { G.multBonus.money *= 0.85; }, type: "bad" },
+            { name: "Low STS Rank", icon: "📉", desc: "This year's Science Talent Search results are disappointing. Your program's reputation takes a hit.", impact: "Research paper production reduced by 10%!", effect: () => { G.multBonus.research *= 0.90; }, type: "bad" },
+            { name: "Paper Rejected", icon: "❌", desc: "A major research paper submitted by your team was rejected by a top journal. Morale is low.", impact: "Research paper production reduced by 8%!", effect: () => { G.multBonus.research *= 0.92; }, type: "bad" },
+            { name: "MakerSpace Lockout", icon: "🔒", desc: "MIT has locked you out of the MakerSpace due to a scheduling conflict! Equipment access is limited.", impact: "Isotope production reduced by 12%!", effect: () => { G.multBonus.isotopes *= 0.88; }, type: "bad" }
+        ];
+
+        // RNG choice events
+        const choiceEvents = [
+            {
+                name: "Regeneron Sponsorship",
+                desc: "Regeneron offers to sponsor USABO. Do you accept?",
+                yesText: "Accept",
+                noText: "Decline",
+                yesEffect: () => {
+                    G.multBonus.money *= 1.15;
+                    if (Math.random() < 0.5) { G.multBonus.isotopes *= 1.10; addLog("💰 Regeneron deal: Money↑ Isotopes↑", "event"); }
+                    else { G.multBonus.isotopes *= 0.90; addLog("💰 Regeneron deal: Money↑ Isotopes↓", "event"); }
+                },
+                noEffect: () => {
+                    G.multBonus.research *= 1.08;
+                    if (Math.random() < 0.5) { addLog("📜 Declined Regeneron: Papers↑", "event"); }
+                    else { G.multBonus.money *= 0.92; addLog("📜 Declined Regeneron: Papers↑ Money↓", "event"); }
+                }
+            },
+            {
+                name: "Lecturer Replacement",
+                desc: "A biology lecturer is unavailable. Invite a CS lecturer instead?",
+                yesText: "Yes, CS",
+                noText: "No change",
+                yesEffect: () => {
+                    if (Math.random() < 0.5) { G.multBonus.isotopes *= 1.12; addLog("💻 CS lecturer: Isotopes↑", "event"); }
+                    else { G.multBonus.isotopes *= 0.88; addLog("💻 CS lecturer mismatch: Isotopes↓", "event"); }
+                },
+                noEffect: () => { addLog("📚 Kept schedule unchanged.", "event"); }
+            },
+            {
+                name: "Frisbee Rivalry",
+                desc: "1984: Organize annual frisbee game against rival program?",
+                yesText: "Yes!",
+                noText: "No thanks",
+                yesEffect: () => { G.frisbeeActive = true; G.multBonus.research *= 1.05; addLog("🥏 Frisbee rivalry! +5% papers from team bonding.", "event"); },
+                noEffect: () => { G.multBonus.money *= 1.03; addLog("🥏 Declined frisbee. More focus on work. +3% money.", "event"); },
+                condition: () => G.turn >= 2 && !G.frisbeeActive
+            }
+        ];
+
+        const storyDialogues = {
+            intro: [
+                { speaker: "Admiral Rickover", text: "Hopefully you're not as sloppy as you look. PAY ATTENTION!", img: "rickover" },
+                { speaker: "Admiral Rickover", text: "I'm Admiral Hyman G. Rickover. I run the Nuclear Navy - keeping America strong so the Soviets don't attack.", img: "rickover" },
+                { speaker: "Admiral Rickover", text: "*whispers* Between you and me... I don't think we should actually USE any of these nukes. Don't tell anyone.", img: "rickover" },
+                { speaker: "Admiral Rickover", text: "Now listen carefully. MONEY is everything. Each FUNDRAISER earns $2.50 per turn. But each NERD costs $2 per turn to maintain.", img: "rickover" },
+                { speaker: "Admiral Rickover", text: "Here's how it works: For every EXTRA dollar you have, you GAIN a nerd. For every dollar you're SHORT, you LOSE a nerd. No limits!", img: "rickover" },
+                { speaker: "Admiral Rickover", text: "You're the Head Intern. These 10 nerds? Your responsibility. The money counter shows your SURPLUS or DEFICIT.", img: "rickover", highlight: "jobsPanel" },
+                { speaker: "Admiral Rickover", text: "Right now you start at $0 with 5 research papers. With 10 fundraisers earning $25 and 10 nerds costing $20, you'll gain 5 nerds per turn. Max population is 120. END THE TURN.", img: "rickover", highlight: "endTurnBtn" }
+            ],
+            turn2: [
+                { speaker: "Admiral Rickover", text: "Good. You're not completely useless. That surplus? That's growth.", img: "rickover" },
+                { speaker: "Admiral Rickover", text: "Now we need RESEARCH. Setting up a garage lab. Reassign ONE person to Research.", img: "rickover", highlight: "jobsPanel", action: "assignResearcher" }
+            ],
+            turn2b: [
+                { speaker: "Admiral Rickover", text: "Garage lab operational. Papers coming in. This unlocks the TECH TREE.", img: "rickover", highlight: "techPanel" },
+                { speaker: "Admiral Rickover", text: "Listen up! BUILDINGS require TECH TREE progress. Each row of tech you complete unlocks new buildings.", img: "rickover" },
+                { speaker: "Admiral Rickover", text: "Row 1 unlocks USABO and Alumni Center. Row 2 unlocks RSI and Harvard. Row 3 unlocks Submarine Lab and MIT.", img: "rickover" },
+                { speaker: "Admiral Rickover", text: "To build GAI and win, you need ALL tech AND ALL buildings first. No shortcuts!", img: "rickover" },
+                { speaker: "Admiral Rickover", text: "End the turn.", img: "rickover" }
+            ],
+            turn3: [
+                { speaker: "Admiral Rickover", text: "Go to Tech Tree. Get the FREE NEWSPAPER ADS at the top. 20% money boost.", img: "rickover", highlight: "techPanel", action: "unlockNewspaperAds" }
+            ],
+            turn3b: [
+                { speaker: "Admiral Rickover", text: "Smart. That 20% compounds. End turn.", img: "rickover" }
+            ],
+            turn4: [
+                { speaker: "Admiral Rickover", text: "Time for real work. Adding a submarine SCRAPYARD. This makes isotopes for reactors.", img: "rickover" },
+                { speaker: "Admiral Rickover", text: "Reassign ONE person to Engineering.", img: "rickover", highlight: "jobsPanel", action: "assignEngineer" }
+            ],
+            turn4b: [
+                { speaker: "Admiral Rickover", text: "Beautiful. Isotopes are the future. Keep building.", img: "rickover" }
+            ],
+            turn11: [
+                { speaker: "Admiral Rickover", text: "Program's running well. Let me explain how submarines—", img: "rickover" },
+                { speaker: "Mrs. Rickover", text: "HYMAN! The TV... that scoundrel John Lehman... they FIRED you!", img: "rickover" },
+                { speaker: "Admiral Rickover", text: "...What?", img: "rickover" },
+                { speaker: "Admiral Rickover", text: "Those FOOLS in Reagan's administration! Lehman can't tell a reactor from a toaster!", img: "rickover" },
+                { speaker: "Admiral Rickover", text: "*sighs* Fine. Can't protect America with subs... I'll protect it with SCIENCE.", img: "rickover" },
+                { speaker: "Admiral Rickover", text: "We need Generalized AI. Make America SMART before the government nukes itself. You have until turn 75.", img: "rickover" },
+                { speaker: "Admiral Rickover", text: "First, unlock Joann DiGennaro in the Tech Tree. She'll help build something lasting.", img: "rickover", highlight: "techPanel" }
+            ],
+            turn15: [
+                { speaker: "Admiral Rickover", text: "Joann and I planned this. It's time.", img: "rickover" },
+                { speaker: "Admiral Rickover", text: "We're founding RSI - Research Science Institute. Training America's brightest minds.", img: "rickover" },
+                { speaker: "Admiral Rickover", text: "This is my legacy. Not subs. PEOPLE.", img: "rickover" }
+            ],
+            turn20: [
+                { speaker: "Admiral Rickover", text: "*coughs* ...1986. I won't be around much longer.", img: "rickover" },
+                { speaker: "Admiral Rickover", text: "Joann takes over. Don't screw up. Make America smart. That's an ORDER.", img: "rickover" },
+                { speaker: "Admiral Rickover", text: "*whispers* ...don't use the nukes.", img: "rickover" },
+                { speaker: "Joann DiGennaro", text: "Admiral Rickover has passed. His vision lives through RSI.", img: "joann" },
+                { speaker: "Joann DiGennaro", text: "I'm Joann DiGennaro. Other programs are competing. We must work harder than ever.", img: "joann" },
+                { speaker: "Joann DiGennaro", text: "Build GAI by turn 75. The Admiral is counting on us.", img: "joann" }
+            ]
+        };
+
+        function showDialogue(key) {
+            G.dialogueQueue = storyDialogues[key] || [];
+            G.currentDialogue = 0;
+            if (G.dialogueQueue.length > 0) displayCurrentDialogue();
+        }
+
+        function displayCurrentDialogue() {
+            const d = G.dialogueQueue[G.currentDialogue];
+            if (!d) { hideDialogue(); return; }
+            document.getElementById('speakerName').textContent = d.speaker;
+            document.getElementById('dialogueText').textContent = d.text;
+            document.getElementById('dialogueOverlay').classList.add('active');
+
+            // Set speaker color class
+            const dialogueBox = document.querySelector('.dialogue-box');
+            dialogueBox.classList.remove('speaker-rickover', 'speaker-joann');
+            dialogueBox.classList.add(d.img === 'joann' ? 'speaker-joann' : 'speaker-rickover');
+
+            // Reset portrait to img element if it was replaced by emoji fallback
+            const portrait = document.getElementById('characterPortrait');
+            let img = document.getElementById('characterImg');
+            if (!img) {
+                portrait.innerHTML = '<img src="" alt="Character" id="characterImg">';
+                img = document.getElementById('characterImg');
+            }
+
+            // Set correct image based on speaker
+            const isJoann = d.img === 'joann';
+            img.src = isJoann ? 'pictures/joann.png' : 'pictures/rickover.png';
+            img.onerror = () => {
+                portrait.innerHTML = `<div style="font-size:2.5em;display:flex;align-items:center;justify-content:center;height:100%">${isJoann ? '👩‍💼' : '⚓'}</div>`;
+            };
+
+            // Play narration sound
+            playSound('narration');
+
+            // Show skip button only during tutorial (before turn 20)
+            const skipBtn = document.getElementById('skipBtn');
+            skipBtn.style.display = (G.turn <= 20 && !G.tutorialSkipped) ? 'block' : 'none';
+
+            if (d.highlight) highlightElement(d.highlight); else hideHighlight();
+            if (d.action) G.requiredAction = d.action;
+        }
+
+        function advanceDialogue() {
+            const d = G.dialogueQueue[G.currentDialogue];
+            if (d && d.action && G.requiredAction === d.action) { hideDialogue(); G.waitingForAction = true; return; }
+            G.currentDialogue++;
+            if (G.currentDialogue >= G.dialogueQueue.length) { hideDialogue(); if (G.pendingAction) { G.pendingAction(); G.pendingAction = null; } }
+            else displayCurrentDialogue();
+        }
+
+        function skipInstructions() {
+            G.tutorialSkipped = true;
+            G.dialogueQueue = [
+                { speaker: "Admiral Rickover", text: "Oh, you don't want any help, do you? Think you're smarter than me? Fine. Figure it out yourself, hotshot.", img: "rickover" },
+                { speaker: "Admiral Rickover", text: "*mutters* Kids these days... no patience. Good luck, you'll need it.", img: "rickover" }
+            ];
+            G.currentDialogue = 0;
+            G.requiredAction = null;
+            G.waitingForAction = false;
+            hideHighlight();
+
+            // Unlock everything up to turn 20
+            G.unlockedDepts = ['Fundraisers', 'Researchers', 'Engineers', 'Recruiters'];
+            G.unlockedResources = ['money', 'research', 'isotopes'];
+            G.techTreeUnlocked = true;
+            G.joannUnlocked = true;
+
+            displayCurrentDialogue();
+            addLog("⏭️ Tutorial skipped!", "story");
+        }
+
+        function hideDialogue() {
+            document.getElementById('dialogueOverlay').classList.remove('active', 'with-highlight');
+            hideHighlight();
+        }
+        function highlightElement(id) {
+            const el = document.getElementById(id); if (!el) return;
+            const rect = el.getBoundingClientRect();
+            const box = document.getElementById('highlightBox');
+            box.style.left = (rect.left - 6) + 'px'; box.style.top = (rect.top - 6) + 'px';
+            box.style.width = (rect.width + 12) + 'px'; box.style.height = (rect.height + 12) + 'px';
+            document.getElementById('highlightOverlay').classList.add('active');
+            document.getElementById('dialogueOverlay').classList.add('with-highlight');
+            // Keep dialogue centered at all times
+        }
+        function hideHighlight() {
+            document.getElementById('highlightOverlay').classList.remove('active');
+            const dialogueOverlay = document.getElementById('dialogueOverlay');
+            dialogueOverlay.classList.remove('with-highlight', 'position-top', 'position-bottom', 'position-left', 'position-right');
+        }
+
+        function showEmergency(title, text) {
+            document.getElementById('emergencyTitle').textContent = title;
+            document.getElementById('emergencyText').textContent = text;
+            document.getElementById('emergencyModal').classList.add('active');
+        }
+        function closeEmergency() {
+            document.getElementById('emergencyModal').classList.remove('active');
+            // Continue with story dialogue after emergency
+            if (G.turn === 11) {
+                setTimeout(() => showDialogue('turn11'), 300);
+            }
+        }
+
+        function showRandomEvent(event) {
+            document.getElementById('randomEventIcon').textContent = event.icon;
+            document.getElementById('randomEventTitle').textContent = event.name;
+            document.getElementById('randomEventDesc').textContent = event.desc;
+            document.getElementById('randomEventImpact').textContent = event.impact;
+
+            const content = document.getElementById('randomEventContent');
+            content.classList.remove('bad', 'good', 'mixed');
+            content.classList.add(event.type);
+
+            document.getElementById('randomEventModal').classList.add('active');
+
+            // Apply the effect
+            event.effect();
+            addLog(`${event.icon} ${event.name}`, event.type === 'bad' ? 'warning' : 'event');
+
+            // Mark as occurred
+            G.occurredEvents.push(event.name);
+
+            // Update UI to reflect changes
+            updateUI();
+        }
+
+        function closeRandomEvent() {
+            document.getElementById('randomEventModal').classList.remove('active');
+        }
+
+        function completeAction(action) {
+            if (G.requiredAction === action) {
+                G.requiredAction = null; G.waitingForAction = false;
+                setTimeout(() => {
+                    if (action === 'assignResearcher') showDialogue('turn2b');
+                    else if (action === 'unlockNewspaperAds') showDialogue('turn3b');
+                    else if (action === 'assignEngineer') showDialogue('turn4b');
+                }, 300);
+            }
+        }
+
+        function showEventChoice(event) {
+            document.getElementById('eventTitle').textContent = event.name;
+            document.getElementById('eventDesc').textContent = event.desc;
+            document.getElementById('eventChoices').innerHTML = `
+                <button class="event-choice yes" onclick="handleEventChoice(true)">${event.yesText}</button>
+                <button class="event-choice no" onclick="handleEventChoice(false)">${event.noText}</button>
+            `;
+            G.currentChoiceEvent = event;
+            document.getElementById('eventModal').classList.add('active');
+        }
+
+        function handleEventChoice(yes) {
+            if (yes) G.currentChoiceEvent.yesEffect();
+            else G.currentChoiceEvent.noEffect();
+            document.getElementById('eventModal').classList.remove('active');
+            G.currentChoiceEvent = null;
+        }
+
+        function toggleFullscreen() { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); }
+
+        function initGame() {
+            G.workers = { "Fundraisers": G.pop, "Researchers": 0, "Engineers": 0, "Recruiters": 0 };
+            G.buildings = {}; Object.keys(buildings).forEach(b => G.buildings[b] = 0);
+            G.techs = {}; Object.keys(techs).forEach(t => G.techs[t] = false);
+            G.flatBonus = { money: 0, isotopes: 0, research: 0, nerds: 0 };
+            G.multBonus = { money: 1, isotopes: 1, research: 1, nerds: 1 };
+            G.unlockedDepts = ['Fundraisers']; G.unlockedResources = ['money', 'research'];
+            G.techTreeUnlocked = false; G.joannUnlocked = false; G.narrator = 'rickover';
+            G.frisbeeActive = false; G.covidActive = false; G.tutorialSkipped = false;
+            G.occurredEvents = []; G.occurredChoiceEvents = [];
+            G.firstNerdSoundPlayed = false;
+            renderBuildingsVisual(); updateUI(); updateResourceLocks();
+        }
+
+        function startGame() {
+            document.getElementById('startScreen').style.display = 'none';
+            document.getElementById('gameScreen').classList.add('active');
+            initGame();
+            startBgMusic();
+            setTimeout(() => showDialogue('intro'), 500);
+        }
+
+        function restartGame() {
+            // Show confirmation before restarting
+            showConfirm("Reset Game?", "Are you sure you want to restart? All progress will be lost!", doRestartGame);
+        }
+
+        function doRestartGame() {
+            G.turn = 1; G.pop = 10; G.money = 0; G.isotopes = 0; G.research = 5;
+            G.storyPhase = 'tutorial';
+            document.getElementById('modalOverlay').classList.remove('active');
+            document.getElementById('eventLog').innerHTML = '<div class="log-entry story">Year 1982 - Nuclear Navy HQ</div>';
+            document.getElementById('gaiMonument').classList.remove('built');
+            document.getElementById('workersArea').innerHTML = '';
+            G.workerElements = [];
+            initGame();
+            startBgMusic();
+            setTimeout(() => showDialogue('intro'), 500);
+        }
+
+        // Confirm Modal
+        let pendingConfirmAction = null;
+        function showConfirm(title, text, onConfirm) {
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmText').textContent = text;
+            pendingConfirmAction = onConfirm;
+            document.getElementById('confirmModal').classList.add('active');
+        }
+
+        function confirmAction(yes) {
+            document.getElementById('confirmModal').classList.remove('active');
+            if (yes && pendingConfirmAction) {
+                pendingConfirmAction();
+            }
+            pendingConfirmAction = null;
+        }
+
+        // Minesweeper Game
+        const MINE_ROWS = 8;
+        const MINE_COLS = 8;
+        const MINE_COUNT = 10;
+        let mineField = [];
+        let mineRevealed = [];
+        let mineFlagged = [];
+        let minesRemaining = 0;
+        let mineGameOver = false;
+        let mineFirstClick = true;
+
+        function startMinesweeper() {
+            mineField = [];
+            mineRevealed = [];
+            mineFlagged = [];
+            mineGameOver = false;
+            mineFirstClick = true;
+            minesRemaining = MINE_COUNT;
+
+            // Initialize empty grid (mines placed on first click)
+            for (let r = 0; r < MINE_ROWS; r++) {
+                mineField[r] = [];
+                mineRevealed[r] = [];
+                mineFlagged[r] = [];
+                for (let c = 0; c < MINE_COLS; c++) {
+                    mineField[r][c] = 0;
+                    mineRevealed[r][c] = false;
+                    mineFlagged[r][c] = false;
+                }
+            }
+
+            document.getElementById('mineStatus').textContent = 'Click anywhere to start! First click is always safe.';
+            document.getElementById('minesweeperModal').classList.add('active');
+            renderMineGrid();
+        }
+
+        function placeMines(safeRow, safeCol) {
+            // Place mines avoiding the first clicked cell and its neighbors
+            let placed = 0;
+            while (placed < MINE_COUNT) {
+                const r = Math.floor(Math.random() * MINE_ROWS);
+                const c = Math.floor(Math.random() * MINE_COLS);
+                // Don't place mine on or adjacent to first click
+                const isSafeZone = Math.abs(r - safeRow) <= 1 && Math.abs(c - safeCol) <= 1;
+                if (mineField[r][c] !== -1 && !isSafeZone) {
+                    mineField[r][c] = -1;
+                    placed++;
+                }
+            }
+
+            // Calculate numbers
+            for (let r = 0; r < MINE_ROWS; r++) {
+                for (let c = 0; c < MINE_COLS; c++) {
+                    if (mineField[r][c] === -1) continue;
+                    let count = 0;
+                    for (let dr = -1; dr <= 1; dr++) {
+                        for (let dc = -1; dc <= 1; dc++) {
+                            const nr = r + dr, nc = c + dc;
+                            if (nr >= 0 && nr < MINE_ROWS && nc >= 0 && nc < MINE_COLS && mineField[nr][nc] === -1) {
+                                count++;
+                            }
+                        }
+                    }
+                    mineField[r][c] = count;
+                }
+            }
+        }
+
+        function renderMineGrid() {
+            const grid = document.getElementById('mineGrid');
+            grid.style.gridTemplateColumns = `repeat(${MINE_COLS}, 35px)`;
+            grid.innerHTML = '';
+
+            let flagCount = 0;
+            for (let r = 0; r < MINE_ROWS; r++) {
+                for (let c = 0; c < MINE_COLS; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'mine-cell';
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+
+                    if (mineFlagged[r][c]) {
+                        cell.classList.add('flagged');
+                        cell.textContent = '🚩';
+                        flagCount++;
+                    } else if (mineRevealed[r][c]) {
+                        cell.classList.add('revealed');
+                        if (mineField[r][c] === -1) {
+                            cell.classList.add('mine');
+                            cell.textContent = '💣';
+                        } else if (mineField[r][c] > 0) {
+                            cell.textContent = mineField[r][c];
+                            if (mineField[r][c] <= 2) cell.classList.add('safe');
+                            else if (mineField[r][c] <= 4) cell.classList.add('warn');
+                            else cell.classList.add('danger');
+                        }
+                    }
+
+                    cell.addEventListener('click', () => revealCell(r, c));
+                    cell.addEventListener('contextmenu', (e) => { e.preventDefault(); flagCell(r, c); });
+                    grid.appendChild(cell);
+                }
+            }
+
+            document.getElementById('flagCount').textContent = flagCount;
+            document.getElementById('mineCount').textContent = MINE_COUNT;
+        }
+
+        function revealCell(r, c) {
+            if (mineGameOver || mineRevealed[r][c] || mineFlagged[r][c]) return;
+
+            // First click - place mines avoiding this cell
+            if (mineFirstClick) {
+                mineFirstClick = false;
+                placeMines(r, c);
+                document.getElementById('mineStatus').textContent = 'Good luck! Click empty cells to reveal more.';
+            }
+
+            mineRevealed[r][c] = true;
+
+            if (mineField[r][c] === -1) {
+                // Hit a mine - lose!
+                mineGameOver = true;
+                revealAllMines();
+                renderMineGrid();
+                document.getElementById('mineStatus').innerHTML = '<span style="color:#f87171;font-size:1.3em;">💥 BOOM! You hit a mine!</span>';
+                setTimeout(() => {
+                    document.getElementById('minesweeperModal').classList.remove('active');
+                    triggerExplosion();
+                }, 1500);
+                return;
+            }
+
+            // If empty cell, reveal neighbors
+            if (mineField[r][c] === 0) {
+                for (let dr = -1; dr <= 1; dr++) {
+                    for (let dc = -1; dc <= 1; dc++) {
+                        const nr = r + dr, nc = c + dc;
+                        if (nr >= 0 && nr < MINE_ROWS && nc >= 0 && nc < MINE_COLS) {
+                            revealCell(nr, nc);
+                        }
+                    }
+                }
+            }
+
+            renderMineGrid();
+            checkMineWin();
+        }
+
+        function flagCell(r, c) {
+            if (mineGameOver || mineRevealed[r][c]) return;
+            mineFlagged[r][c] = !mineFlagged[r][c];
+            renderMineGrid();
+        }
+
+        function revealAllMines() {
+            for (let r = 0; r < MINE_ROWS; r++) {
+                for (let c = 0; c < MINE_COLS; c++) {
+                    if (mineField[r][c] === -1) mineRevealed[r][c] = true;
+                }
+            }
+        }
+
+        function checkMineWin() {
+            let unrevealedSafe = 0;
+            for (let r = 0; r < MINE_ROWS; r++) {
+                for (let c = 0; c < MINE_COLS; c++) {
+                    if (mineField[r][c] !== -1 && !mineRevealed[r][c]) {
+                        unrevealedSafe++;
+                    }
+                }
+            }
+
+            if (unrevealedSafe === 0) {
+                mineGameOver = true;
+                document.getElementById('mineStatus').innerHTML = '<span style="color:#4ade80;font-size:1.3em;">✅ SUCCESS! Nuclear safety verified!</span>';
+                setTimeout(() => {
+                    document.getElementById('minesweeperModal').classList.remove('active');
+                    completeMinesweeperWin();
+                }, 1500);
+            }
+        }
+
+        function completeMinesweeperWin() {
+            // Player won - actually build GAI
+            G.isotopes -= buildings["GAI"].cost;
+            G.buildings["GAI"] = 1;
+            playSound('building');
+            addLog('Built 🤖 GAI!', 'purchase');
+            // Ensure music continues after mini-game
+            if (musicPlaying && sounds.bgMusic.paused) {
+                sounds.bgMusic.play().catch(() => {});
+            }
+            checkVictory();
+            updateUI();
+        }
+
+        function triggerExplosion() {
+            playSound('lose');
+            const overlay = document.getElementById('explosionOverlay');
+            const particles = document.getElementById('explosionParticles');
+
+            // Create explosion particles
+            particles.innerHTML = '';
+            const emojis = ['💥', '🔥', '💣', '☢️', '⚡', '💀'];
+            for (let i = 0; i < 20; i++) {
+                const p = document.createElement('div');
+                p.className = 'explosion-particle';
+                p.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+                p.style.setProperty('--tx', (Math.random() - 0.5) * 600 + 'px');
+                p.style.setProperty('--ty', (Math.random() - 0.5) * 600 + 'px');
+                p.style.animationDelay = Math.random() * 0.3 + 's';
+                particles.appendChild(p);
+            }
+
+            overlay.classList.add('active');
+
+            setTimeout(() => {
+                overlay.classList.remove('active');
+                // Cut everything in half
+                G.pop = Math.max(1, Math.floor(G.pop / 2));
+                G.money = Math.floor(G.money / 2);
+                G.isotopes = Math.floor(G.isotopes / 2);
+                G.research = Math.floor(G.research / 2);
+                normalizeWorkers();
+                updateUI();
+                // Ensure music continues after mini-game
+                if (musicPlaying && sounds.bgMusic.paused) {
+                    sounds.bgMusic.play().catch(() => {});
+                }
+                // Show emergency warning
+                showEmergency("☢️ NUCLEAR ACCIDENT ☢️", "The minesweeper test failed catastrophically! Half of your resources and staff have been lost in the explosion. You must rebuild before attempting to create GAI again.");
+            }, 1500);
+        }
+
+        // ========== WORDLE GAME ==========
+        const WORDLE_WORDS = [
+            "MAITE", "KATHY", "FRAME", "USABO", "ZHANG", "MEDAL", "TUTOR", "ADMIN", "CHRIS", "QUANT",
+            "JOANN", "HYMAN", "ADMIT", "FINAL", "ALUMS", "NERDS", "CADET", "STAFF", "GROUP", "CLASS",
+            "STUDY", "FOCUS", "RIGOR", "LATEX", "GLASS", "FLASK", "TUBES", "TITHE", "PRINT", "STAIN",
+            "PIPET", "SIGMA", "VARUN", "ERINA", "CSAIL", "PRIME", "GRAPH", "VIRUS", "GENES", "CELLS",
+            "ATOMS", "BRAIN", "SOLVE", "APPLY", "LEARN", "RULES", "BIKES", "ETHAN", "LEONG", "JUDGE",
+            "PROOF", "MATHS", "DRAFT", "EDITS", "STATA", "SLEEP", "RAMEN", "MODEL", "FACTS", "DELTA",
+            "GAMMA", "IONIC", "TABLE", "INPUT", "HONOR", "AWARD", "ARRAY", "ALPHA", "UNITY", "STEAM",
+            "TEAMS", "SKILL", "ERROR", "ALANI", "PAPER", "LOGIC", "CHEAP", "YUMMY", "QUARK", "PIANO",
+            "GOALS", "JAMES", "FIELD", "FORCE", "PHASE", "SCALE", "RANGE", "SPEED", "POWER", "CABLE",
+            "PROBE", "WIRES", "INDEX", "MOLAR", "OXIDE", "ADAPT", "CYCLE", "ORBIT", "PLANT", "POINT",
+            "ANGLE", "TREND", "VALUE", "THETA", "CURVE", "ZEROS", "RATIO", "UNITS", "TIMES", "ROOTS",
+            "WRITE", "TEACH", "THINK", "SCORE", "ESSAY", "TOPIC", "NOTES", "QUOTE", "GRADE", "FLORA",
+            "FAUNA", "ORGAN", "BYTES", "DEBUG", "CODER", "PIXEL", "DRIVE", "OMEGA", "DIGIT", "WORLD"
+        ];
+
+        let wordleTarget = "";
+        let wordleGuesses = [];
+        let wordleCurrentGuess = "";
+        let wordleGameOver = false;
+        let wordleRow = 0;
+        const WORDLE_MAX_GUESSES = 6;
+
+        function startWordle() {
+            wordleTarget = WORDLE_WORDS[Math.floor(Math.random() * WORDLE_WORDS.length)];
+            wordleGuesses = [];
+            wordleCurrentGuess = "";
+            wordleGameOver = false;
+            wordleRow = 0;
+
+            renderWordleGrid();
+            renderWordleKeyboard();
+            document.getElementById('wordleStatus').textContent = '';
+            document.getElementById('wordleModal').classList.add('active');
+
+            // Add keyboard listener
+            document.addEventListener('keydown', handleWordleKey);
+        }
+
+        function renderWordleGrid() {
+            const grid = document.getElementById('wordleGrid');
+            grid.innerHTML = '';
+
+            for (let r = 0; r < WORDLE_MAX_GUESSES; r++) {
+                const row = document.createElement('div');
+                row.className = 'wordle-row';
+                row.id = `wordle-row-${r}`;
+
+                for (let c = 0; c < 5; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'wordle-cell';
+                    cell.id = `wordle-cell-${r}-${c}`;
+                    row.appendChild(cell);
+                }
+                grid.appendChild(row);
+            }
+        }
+
+        function renderWordleKeyboard() {
+            const keyboard = document.getElementById('wordleKeyboard');
+            const rows = [
+                ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
+                ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
+                ['ENTER', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '⌫']
+            ];
+
+            keyboard.innerHTML = '';
+            rows.forEach(row => {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'wordle-keyboard-row';
+                row.forEach(key => {
+                    const keyBtn = document.createElement('button');
+                    keyBtn.className = 'wordle-key' + (key.length > 1 ? ' wide' : '');
+                    keyBtn.textContent = key;
+                    keyBtn.id = `wordle-key-${key}`;
+                    keyBtn.onclick = () => handleWordleInput(key);
+                    rowDiv.appendChild(keyBtn);
+                });
+                keyboard.appendChild(rowDiv);
+            });
+        }
+
+        function handleWordleKey(e) {
+            if (wordleGameOver) return;
+            if (e.key === 'Enter') handleWordleInput('ENTER');
+            else if (e.key === 'Backspace') handleWordleInput('⌫');
+            else if (/^[a-zA-Z]$/.test(e.key)) handleWordleInput(e.key.toUpperCase());
+        }
+
+        function handleWordleInput(key) {
+            if (wordleGameOver) return;
+
+            if (key === '⌫') {
+                wordleCurrentGuess = wordleCurrentGuess.slice(0, -1);
+                updateWordleRow();
+            } else if (key === 'ENTER') {
+                if (wordleCurrentGuess.length === 5) {
+                    submitWordleGuess();
+                }
+            } else if (wordleCurrentGuess.length < 5) {
+                wordleCurrentGuess += key;
+                updateWordleRow();
+            }
+        }
+
+        function updateWordleRow() {
+            for (let c = 0; c < 5; c++) {
+                const cell = document.getElementById(`wordle-cell-${wordleRow}-${c}`);
+                cell.textContent = wordleCurrentGuess[c] || '';
+                cell.classList.toggle('filled', !!wordleCurrentGuess[c]);
+            }
+        }
+
+        function submitWordleGuess() {
+            const guess = wordleCurrentGuess;
+            wordleGuesses.push(guess);
+
+            // Check each letter and animate
+            const result = [];
+            const targetLetters = wordleTarget.split('');
+            const guessLetters = guess.split('');
+
+            // First pass: find correct positions
+            for (let i = 0; i < 5; i++) {
+                if (guessLetters[i] === targetLetters[i]) {
+                    result[i] = 'correct';
+                    targetLetters[i] = null;
+                    guessLetters[i] = null;
+                }
+            }
+
+            // Second pass: find present letters
+            for (let i = 0; i < 5; i++) {
+                if (guessLetters[i] === null) continue;
+                const idx = targetLetters.indexOf(guessLetters[i]);
+                if (idx !== -1) {
+                    result[i] = 'present';
+                    targetLetters[idx] = null;
+                } else {
+                    result[i] = 'absent';
+                }
+            }
+
+            // Animate reveal
+            for (let c = 0; c < 5; c++) {
+                setTimeout(() => {
+                    const cell = document.getElementById(`wordle-cell-${wordleRow}-${c}`);
+                    cell.classList.add('flip', result[c]);
+
+                    // Update keyboard
+                    const keyBtn = document.getElementById(`wordle-key-${guess[c]}`);
+                    if (keyBtn) {
+                        if (result[c] === 'correct') keyBtn.className = 'wordle-key correct';
+                        else if (result[c] === 'present' && !keyBtn.classList.contains('correct')) keyBtn.classList.add('present');
+                        else if (!keyBtn.classList.contains('correct') && !keyBtn.classList.contains('present')) keyBtn.classList.add('absent');
+                    }
+                }, c * 300);
+            }
+
+            setTimeout(() => {
+                if (guess === wordleTarget) {
+                    wordleGameOver = true;
+                    document.getElementById('wordleStatus').innerHTML = '<span style="color:#4ade80;">🎉 Correct! Mark Kantrowitz is impressed!</span>';
+                    setTimeout(() => {
+                        document.getElementById('wordleModal').classList.remove('active');
+                        document.removeEventListener('keydown', handleWordleKey);
+                        completeWordleWin();
+                    }, 2000);
+                } else if (wordleRow >= WORDLE_MAX_GUESSES - 1) {
+                    wordleGameOver = true;
+                    document.getElementById('wordleStatus').innerHTML = `<span style="color:#f87171;">❌ The word was ${wordleTarget}. You lose 30% money!</span>`;
+                    setTimeout(() => {
+                        document.getElementById('wordleModal').classList.remove('active');
+                        document.removeEventListener('keydown', handleWordleKey);
+                        completeWordleLoss();
+                    }, 2500);
+                } else {
+                    wordleRow++;
+                    wordleCurrentGuess = "";
+                }
+            }, 1600);
+        }
+
+        function completeWordleWin() {
+            // Successfully unlock Mark Kantrowitz
+            const t = techs["Mark Kantrowitz"];
+            G.research -= t.cost;
+            G.techs["Mark Kantrowitz"] = true;
+            playSound('tech');
+            addLog(`Researched 🏆 Mark Kantrowitz!`, 'purchase');
+            applyModifiers();
+            // Ensure music continues after mini-game
+            if (musicPlaying && sounds.bgMusic.paused) {
+                sounds.bgMusic.play().catch(() => {});
+            }
+            updateUI();
+        }
+
+        function completeWordleLoss() {
+            // Lose 30% of money
+            const loss = Math.floor(G.money * 0.30);
+            G.money -= loss;
+            addLog(`📉 Lost $${loss.toFixed(1)} from failed Wordle!`, 'warning');
+            // Ensure music continues after mini-game
+            if (musicPlaying && sounds.bgMusic.paused) {
+                sounds.bgMusic.play().catch(() => {});
+            }
+            updateUI();
+        }
+
+        // ========== CROSSY ROAD GAME ==========
+        const CROSSY_MAX_STEPS = 60;
+        let crossyBet = 0;
+        let crossySteps = 0;
+        let crossyEarnings = 0;
+        let crossyPlayerX = 145;
+        let crossyPlayerY = 370;
+        let crossyGameActive = false;
+        let crossyLanes = [];
+        let crossyObstacles = [];
+        let crossyAnimationFrame = null;
+
+        function showCrossyModal() {
+            const maxBet = Math.floor(G.money);
+            document.getElementById('crossyMaxBet').textContent = maxBet;
+            document.getElementById('crossyBetInput').max = maxBet;
+            document.getElementById('crossyBetInput').value = Math.min(10, maxBet);
+            document.getElementById('crossyBetSection').style.display = 'block';
+            document.getElementById('crossyGameSection').style.display = 'none';
+            document.getElementById('crossyModal').classList.add('active');
+        }
+
+        function startCrossyGame() {
+            const betInput = document.getElementById('crossyBetInput');
+            crossyBet = Math.min(Math.floor(G.money), Math.max(1, parseInt(betInput.value) || 1));
+
+            if (crossyBet <= 0 || crossyBet > G.money) {
+                document.getElementById('crossyStatus').textContent = 'Invalid bet amount!';
+                return;
+            }
+
+            crossySteps = 0;
+            crossyEarnings = 0;
+            crossyPlayerX = 145;
+            crossyPlayerY = 370;
+            crossyGameActive = true;
+
+            document.getElementById('crossyBetSection').style.display = 'none';
+            document.getElementById('crossyGameSection').style.display = 'block';
+            document.getElementById('crossyBetDisplay').textContent = crossyBet;
+            document.getElementById('crossySteps').textContent = 0;
+            document.getElementById('crossyEarnings').textContent = '0.00';
+            document.getElementById('crossyStatus').textContent = 'Use arrow keys or buttons to move!';
+
+            initCrossyLanes();
+            renderCrossyGame();
+
+            // Add keyboard controls
+            document.addEventListener('keydown', handleCrossyKey);
+
+            // Start obstacle animation
+            crossyAnimationFrame = setInterval(updateCrossyObstacles, 50);
+        }
+
+        function initCrossyLanes() {
+            crossyLanes = [];
+            crossyObstacles = [];
+
+            // Lane types: grass (safe), road (cars), water (logs), safe zone at top
+            const laneTypes = ['safe', 'grass', 'road', 'road', 'grass', 'water', 'water', 'road', 'road', 'grass'];
+
+            for (let i = 0; i < 10; i++) {
+                const lane = {
+                    y: i * 40,
+                    type: laneTypes[i],
+                    speed: (Math.random() > 0.5 ? 1 : -1) * (1 + Math.random() * 2),
+                    obstacles: []
+                };
+
+                if (lane.type === 'road') {
+                    // Add cars
+                    const numCars = 2 + Math.floor(Math.random() * 2);
+                    for (let j = 0; j < numCars; j++) {
+                        lane.obstacles.push({
+                            x: j * (320 / numCars) + Math.random() * 50,
+                            width: 40 + Math.random() * 20,
+                            emoji: ['🚗', '🚙', '🚕', '🚌'][Math.floor(Math.random() * 4)]
+                        });
+                    }
+                } else if (lane.type === 'water') {
+                    // Add logs
+                    const numLogs = 2 + Math.floor(Math.random() * 2);
+                    for (let j = 0; j < numLogs; j++) {
+                        lane.obstacles.push({
+                            x: j * (320 / numLogs) + Math.random() * 30,
+                            width: 60 + Math.random() * 30,
+                            emoji: '🪵'
+                        });
+                    }
+                }
+
+                crossyLanes.push(lane);
+            }
+        }
+
+        function renderCrossyGame() {
+            const area = document.getElementById('crossyGameArea');
+            area.innerHTML = '';
+
+            // Render lanes
+            crossyLanes.forEach((lane, i) => {
+                const laneDiv = document.createElement('div');
+                laneDiv.className = `crossy-lane ${lane.type}`;
+                laneDiv.style.top = lane.y + 'px';
+
+                // Render obstacles
+                lane.obstacles.forEach(obs => {
+                    const obsDiv = document.createElement('div');
+                    obsDiv.className = 'crossy-obstacle';
+                    obsDiv.style.left = obs.x + 'px';
+                    obsDiv.style.top = '5px';
+                    obsDiv.style.width = obs.width + 'px';
+                    obsDiv.textContent = obs.emoji;
+                    laneDiv.appendChild(obsDiv);
+                });
+
+                area.appendChild(laneDiv);
+            });
+
+            // Render player
+            const player = document.createElement('div');
+            player.className = 'crossy-player';
+            player.id = 'crossyPlayer';
+            player.textContent = '🐔';
+            player.style.left = crossyPlayerX + 'px';
+            player.style.top = crossyPlayerY + 'px';
+            area.appendChild(player);
+        }
+
+        function updateCrossyObstacles() {
+            if (!crossyGameActive) return;
+
+            crossyLanes.forEach(lane => {
+                lane.obstacles.forEach(obs => {
+                    obs.x += lane.speed;
+                    // Wrap around
+                    if (obs.x > 320) obs.x = -obs.width;
+                    if (obs.x < -obs.width) obs.x = 320;
+                });
+            });
+
+            renderCrossyGame();
+            checkCrossyCollision();
+        }
+
+        function handleCrossyKey(e) {
+            if (!crossyGameActive) return;
+            if (e.key === 'ArrowUp') moveChicken('up');
+            else if (e.key === 'ArrowDown') moveChicken('down');
+            else if (e.key === 'ArrowLeft') moveChicken('left');
+            else if (e.key === 'ArrowRight') moveChicken('right');
+        }
+
+        function moveChicken(dir) {
+            if (!crossyGameActive) return;
+
+            const prevY = crossyPlayerY;
+
+            if (dir === 'up' && crossyPlayerY > 0) {
+                crossyPlayerY -= 40;
+                if (crossyPlayerY < prevY) {
+                    crossySteps++;
+                    // Earnings only count - each step earns 5% of initial bet
+                    crossyEarnings = crossyBet * crossySteps * 0.05;
+                    document.getElementById('crossySteps').textContent = crossySteps;
+                    // Show earnings (but player only keeps them if they have 20+ steps)
+                    document.getElementById('crossyEarnings').textContent = crossyEarnings.toFixed(2);
+                    // Update status based on step count
+                    if (crossySteps < 20) {
+                        document.getElementById('crossyStatus').innerHTML = `<span style="color:#fbbf24;">⚠️ ${20 - crossySteps} more steps to safety!</span>`;
+                    } else if (crossySteps === 20) {
+                        document.getElementById('crossyStatus').innerHTML = `<span style="color:#4ade80;">✅ Safe zone! You can now cash out!</span>`;
+                    }
+                }
+            } else if (dir === 'down' && crossyPlayerY < 370) {
+                crossyPlayerY += 40;
+            } else if (dir === 'left' && crossyPlayerX > 0) {
+                crossyPlayerX -= 30;
+            } else if (dir === 'right' && crossyPlayerX < 290) {
+                crossyPlayerX += 30;
+            }
+
+            const player = document.getElementById('crossyPlayer');
+            if (player) {
+                player.style.left = crossyPlayerX + 'px';
+                player.style.top = crossyPlayerY + 'px';
+            }
+
+            checkCrossyCollision();
+
+            // Check if reached max steps - automatic win
+            if (crossySteps >= CROSSY_MAX_STEPS) {
+                crossyGameActive = false;
+                clearInterval(crossyAnimationFrame);
+                document.removeEventListener('keydown', handleCrossyKey);
+                document.getElementById('crossyStatus').innerHTML = '<span style="color:#4ade80;">🎉 MAX STEPS! You win big!</span>';
+                setTimeout(() => {
+                    completeCrossyWin();
+                }, 1500);
+                return;
+            }
+
+            // Reached the top - reset to bottom and regenerate lanes
+            if (crossyPlayerY <= 0) {
+                crossyPlayerY = 370;
+                crossyPlayerX = 145;
+                initCrossyLanes(); // Regenerate lanes for more challenge
+                document.getElementById('crossyStatus').innerHTML = '<span style="color:#4ade80;">🎉 Crossed! Keep going for more earnings!</span>';
+            }
+        }
+
+        function checkCrossyCollision() {
+            if (!crossyGameActive) return;
+
+            const laneIndex = Math.floor(crossyPlayerY / 40);
+            if (laneIndex < 0 || laneIndex >= crossyLanes.length) return;
+
+            const lane = crossyLanes[laneIndex];
+
+            if (lane.type === 'road') {
+                // Check car collision
+                for (const obs of lane.obstacles) {
+                    if (crossyPlayerX + 15 > obs.x && crossyPlayerX < obs.x + obs.width) {
+                        crossyGameActive = false;
+                        clearInterval(crossyAnimationFrame);
+                        document.removeEventListener('keydown', handleCrossyKey);
+                        playSound('lose');
+                        if (crossySteps >= 20) {
+                            document.getElementById('crossyStatus').innerHTML = `<span style="color:#fbbf24;">💥 Hit by a car! But you made ${crossySteps} steps - keeping earnings!</span>`;
+                        } else {
+                            document.getElementById('crossyStatus').innerHTML = '<span style="color:#f87171;">💥 Hit by a car! Less than 20 steps - lost your bet!</span>';
+                        }
+                        setTimeout(() => {
+                            completeCrossyLoss();
+                        }, 1500);
+                        return;
+                    }
+                }
+            } else if (lane.type === 'water') {
+                // Check if on a log
+                let onLog = false;
+                for (const obs of lane.obstacles) {
+                    if (crossyPlayerX + 15 > obs.x && crossyPlayerX < obs.x + obs.width) {
+                        onLog = true;
+                        // Move with log
+                        crossyPlayerX += lane.speed;
+                        break;
+                    }
+                }
+                if (!onLog) {
+                    crossyGameActive = false;
+                    clearInterval(crossyAnimationFrame);
+                    document.removeEventListener('keydown', handleCrossyKey);
+                    playSound('lose');
+                    if (crossySteps >= 20) {
+                        document.getElementById('crossyStatus').innerHTML = `<span style="color:#fbbf24;">🌊 Fell in the water! But you made ${crossySteps} steps - keeping earnings!</span>`;
+                    } else {
+                        document.getElementById('crossyStatus').innerHTML = '<span style="color:#f87171;">🌊 Fell in the water! Less than 20 steps - lost your bet!</span>';
+                    }
+                    setTimeout(() => {
+                        completeCrossyLoss();
+                    }, 1500);
+                }
+            }
+        }
+
+        function cashOutCrossy() {
+            if (!crossyGameActive) return;
+
+            // Must reach 20 steps to cash out with earnings
+            if (crossySteps < 20) {
+                document.getElementById('crossyStatus').innerHTML = `<span style="color:#f87171;">⚠️ Need ${20 - crossySteps} more steps to cash out!</span>`;
+                return;
+            }
+
+            crossyGameActive = false;
+            clearInterval(crossyAnimationFrame);
+            document.removeEventListener('keydown', handleCrossyKey);
+
+            if (crossyEarnings > 0) {
+                document.getElementById('crossyStatus').innerHTML = `<span style="color:#4ade80;">💰 Cashed out $${crossyEarnings.toFixed(2)} at ${crossySteps} steps!</span>`;
+                setTimeout(() => {
+                    completeCrossyWin();
+                }, 1500);
+            } else {
+                document.getElementById('crossyStatus').innerHTML = '<span style="color:#fbbf24;">No earnings to cash out. Game ended.</span>';
+                setTimeout(() => {
+                    document.getElementById('crossyModal').classList.remove('active');
+                    // Ensure music continues after mini-game
+                    if (musicPlaying && sounds.bgMusic.paused) {
+                        sounds.bgMusic.play().catch(() => {});
+                    }
+                }, 1500);
+            }
+        }
+
+        function completeCrossyWin() {
+            // Earnings minus bet = net profit
+            const netProfit = crossyEarnings - crossyBet;
+            G.money += netProfit;
+            if (netProfit >= 0) {
+                addLog(`🐔 Chicken Crossing: Bet $${crossyBet.toFixed(2)}, earned $${crossyEarnings.toFixed(2)}, profit $${netProfit.toFixed(2)}!`, 'purchase');
+            } else {
+                addLog(`🐔 Chicken Crossing: Bet $${crossyBet.toFixed(2)}, earned $${crossyEarnings.toFixed(2)}, loss $${Math.abs(netProfit).toFixed(2)}`, 'warning');
+            }
+            document.getElementById('crossyModal').classList.remove('active');
+            // Ensure music continues after mini-game
+            if (musicPlaying && sounds.bgMusic.paused) {
+                sounds.bgMusic.play().catch(() => {});
+            }
+            updateUI();
+        }
+
+        function completeCrossyLoss() {
+            // If player made it to 20+ steps, they keep their earnings
+            // If less than 20 steps, they lose their entire bet
+            if (crossySteps >= 20) {
+                // Keep earnings (net = earnings - bet, but earnings already factors in bet)
+                const netGain = crossyEarnings - crossyBet;
+                if (netGain >= 0) {
+                    G.money += netGain;
+                    addLog(`🐔 Lost at ${crossySteps} steps but kept $${crossyEarnings.toFixed(2)} earnings!`, 'purchase');
+                } else {
+                    G.money += netGain; // This will be negative, reducing money
+                    addLog(`🐔 Lost at ${crossySteps} steps. Partial loss: $${Math.abs(netGain).toFixed(2)}`, 'warning');
+                }
+            } else {
+                // Less than 20 steps = lose entire bet
+                G.money -= crossyBet;
+                addLog(`🐔 Lost at ${crossySteps} steps - lost entire bet of $${crossyBet.toFixed(2)}!`, 'warning');
+            }
+            document.getElementById('crossyModal').classList.remove('active');
+            // Ensure music continues after mini-game
+            if (musicPlaying && sounds.bgMusic.paused) {
+                sounds.bgMusic.play().catch(() => {});
+            }
+            updateUI();
+        }
+
+        function updateResourceLocks() {
+            document.getElementById('resIsotopes').classList.toggle('locked', !G.unlockedResources.includes('isotopes'));
+            const left = G.maxTurn - G.turn + 1;
+            document.getElementById('turnsLeftBadge').classList.toggle('warning', left <= 15);
+        }
+
+        function updateUI() {
+            document.getElementById('nerdsCount').textContent = G.pop;
+            document.getElementById('moneyCount').textContent = G.money.toFixed(1);
+            document.getElementById('isotopesCount').textContent = G.isotopes.toFixed(1);
+            document.getElementById('researchCount').textContent = G.research.toFixed(1);
+                        document.getElementById('turnNum').textContent = G.turn;
+            document.getElementById('turnsLeft').textContent = Math.max(0, G.maxTurn - G.turn + 1);
+            document.getElementById('unassigned').textContent = G.pop - Object.values(G.workers).reduce((a, b) => a + b, 0);
+
+            renderJobs(); renderWorkers(); renderBuildings(); updateBuildingsVisual(); renderSkillTree(); updateResourceLocks();
+            document.getElementById('submarine').classList.toggle('active', G.techs["Nukes"]);
+        }
+
+        function renderJobs() {
+            document.getElementById('jobGrid').innerHTML = Object.entries(jobs).map(([name, job]) => {
+                const count = G.workers[name] || 0;
+                const unlocked = G.unlockedDepts.includes(name);
+                const yields = Object.entries(job.yields).map(([k, v]) => `+${v}${k[0].toUpperCase()}`).join(' ');
+                const total = Object.values(G.workers).reduce((a, b) => a + b, 0);
+                return `<div class="job-row ${unlocked ? '' : 'locked'}">
+                    <div class="job-info">
+                        <h4>${job.icon} ${name}<span class="info-icon">ℹ<div class="info-tooltip"><div class="info-tooltip-produces">${job.produces}</div></div></span></h4>
+                        <div class="job-yields">${yields}</div>
+                    </div>
+                    <div class="job-controls">
+                        <button onclick="adjustWorker('${name}',-1)" ${count <= 0 || !unlocked ? 'disabled' : ''}>−</button>
+                        <input type="number" class="job-count-input" value="${count}" min="0" max="${G.pop}"
+                            onchange="setWorkerCount('${name}', this.value)"
+                            onclick="this.select()" ${!unlocked ? 'disabled' : ''}>
+                        <button onclick="adjustWorker('${name}',1)" ${total >= G.pop || !unlocked ? 'disabled' : ''}>+</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderBuildingsVisual() {
+            const container = document.getElementById('buildingsContainer');
+            container.innerHTML = '';
+            ["Office", "Garage Lab", "Scrapyard", "Alumni HQ", "RSI"].forEach(name => {
+                const icon = name === "Office" ? "🏢" : name === "Garage Lab" ? "🔧" : name === "Scrapyard" ? "⚓" : name === "Alumni HQ" ? "🤝" : "🏛️";
+                const built = name === "Office" || G.buildings[name] > 0 || (name === "Garage Lab" && G.unlockedDepts.includes("Researchers")) || (name === "Scrapyard" && G.unlockedDepts.includes("Engineers"));
+                const unlocked = name === "Office" || G.unlockedDepts.includes(name === "Garage Lab" ? "Researchers" : name === "Scrapyard" ? "Engineers" : name === "Alumni HQ" ? "Recruiters" : "Fundraisers");
+                const div = document.createElement('div');
+                div.className = `building-structure ${built ? 'built' : ''} ${!unlocked && name !== "RSI" ? 'locked' : ''}`;
+                div.id = `building-${name.replace(/\s/g, '-')}`;
+                div.innerHTML = `<div class="building-icon">${icon}</div><div class="building-label">${name}</div>`;
+                container.appendChild(div);
+            });
+        }
+
+        function updateBuildingsVisual() {
+            ["Office", "Garage Lab", "Scrapyard", "Alumni HQ", "RSI"].forEach(name => {
+                const el = document.getElementById(`building-${name.replace(/\s/g, '-')}`);
+                if (el) {
+                    const built = name === "Office" || G.buildings[name] > 0 || (name === "Garage Lab" && G.unlockedDepts.includes("Researchers")) || (name === "Scrapyard" && G.unlockedDepts.includes("Engineers"));
+                    el.classList.toggle('built', built);
+                }
+            });
+            document.getElementById('gaiMonument').classList.toggle('built', G.buildings["GAI"] > 0);
+        }
+
+        function renderWorkers() {
+            const area = document.getElementById('workersArea');
+            const totalNeeded = Object.values(G.workers).reduce((a, b) => a + b, 0);
+            while (G.workerElements.length < totalNeeded) {
+                const w = document.createElement('div'); w.className = 'worker idle';
+                w.style.left = `${12 + Math.random() * 8}%`; w.style.bottom = `${5 + Math.random() * 18}%`;
+                w.dataset.currentX = parseFloat(w.style.left); w.dataset.job = '';
+                area.appendChild(w); G.workerElements.push(w);
+            }
+            while (G.workerElements.length > totalNeeded) { const w = G.workerElements.pop(); w.remove(); }
+
+            let idx = 0;
+            Object.entries(G.workers).forEach(([job, count]) => {
+                const jobData = jobs[job];
+                const targetPos = buildingPositions[jobData.building] || 12;
+                const isBuilt = jobData.building === "Office" || G.unlockedDepts.includes(job);
+                for (let i = 0; i < count; i++) {
+                    const w = G.workerElements[idx]; if (!w) continue;
+                    const currentX = parseFloat(w.dataset.currentX) || 12;
+                    const prevJob = w.dataset.job;
+                    let targetX = isBuilt ? targetPos + ((i % 4) - 1.5) * 3 : 12 + (idx % 6) * 3;
+                    if (prevJob !== job) { w.innerHTML = jobData.icon; w.dataset.job = job; }
+                    if (Math.abs(currentX - targetX) > 2) {
+                        w.classList.remove('idle', 'working', 'walking-left', 'walking-right');
+                        w.classList.add(targetX < currentX ? 'walking-left' : 'walking-right');
+                        w.style.left = `${targetX}%`; w.dataset.currentX = targetX;
+                        setTimeout(() => { w.classList.remove('walking-left', 'walking-right'); w.classList.add(isBuilt ? 'working' : 'idle'); }, 1500);
+                    } else { w.classList.remove('walking-left', 'walking-right'); w.classList.add(isBuilt ? 'working' : 'idle'); }
+                    w.style.animationDelay = `${idx * 0.08}s`; idx++;
+                }
+            });
+        }
+
+        function renderBuildings() {
+            const sorted = Object.entries(buildings).sort((a, b) => a[1].cost - b[1].cost);
+            document.getElementById('buildingsTab').innerHTML = sorted.map(([name, b]) => {
+                const owned = G.buildings[name] > 0;
+                const canAfford = G.isotopes >= b.cost;
+                const lockReason = getBuildingLockReason(name);
+                const isLocked = lockReason !== null;
+                const canBuy = canAfford && !isLocked && !owned;
+                if (b.visualOnly) return '';
+
+                let statusText = '';
+                if (owned) statusText = '✓ BUILT';
+                else if (isLocked) statusText = `🔒 ${lockReason}`;
+                else if (!canAfford) statusText = `Need ${b.cost} ⚛️`;
+                else statusText = b.victory ? '🤖 BUILD GAI' : 'Buy';
+
+                return `<div class="shop-item ${owned ? 'owned' : ''} ${isLocked ? 'locked-building' : ''}">
+                    <div><h4>${b.icon} ${name}</h4><div class="desc">${b.desc}</div><div class="cost">${isLocked ? lockReason : b.cost + ' ⚛️'}</div></div>
+                    <button class="buy-btn" onclick="buyBuilding('${name}')" ${!canBuy ? 'disabled' : ''}>${owned ? '✓' : b.victory ? '🤖 BUILD' : 'Buy'}</button>
+                </div>`;
+            }).join('');
+        }
+
+        function renderSkillTree() {
+            if (!G.techTreeUnlocked) {
+                document.getElementById('techTab').innerHTML = '<div style="text-align:center;padding:15px;opacity:0.5;">🔒 Locked<br><small>Create Research dept</small></div>';
+                return;
+            }
+
+            // Newspaper Ads at the very top, then 4 tracks below
+            const topTech = "Newspaper Ads";
+            const tracks = {
+                "Support": ["Alumni Network", "Recommendation Letters", "Cambridge Pizza"],
+                "Engineering": ["Nukes", "Rodent Surgery", "CRISPR", "CSAIL"],
+                "Fundraising": ["Joann DiGennaro", "Startups Ned Koh"],
+                "Research": ["Kathy USABO", "STS Formatting", "Mark Kantrowitz"]
+            };
+
+            let html = '<div class="skill-tree-visual">';
+
+            // Render Newspaper Ads at top
+            const t = techs[topTech];
+            const topUnlocked = G.techs[topTech];
+            const topAvailable = !topUnlocked;
+            html += `<div class="track-label" style="color:#fbbf24;">START HERE</div>`;
+            html += `<div class="tree-row">
+                <div class="tree-node ${topUnlocked ? 'unlocked' : ''} ${topAvailable ? 'available' : ''}"
+                    onclick="${topAvailable ? `unlockTech('${topTech}')` : ''}" style="min-width:100px;">
+                    <div class="node-icon" style="font-size:1.4em;">${t.icon}</div>
+                    <div class="node-name" style="font-size:0.65em;">${topTech}</div>
+                    <div class="node-cost">${topUnlocked ? '✓ DONE' : 'FREE'}</div>
+                </div>
+            </div>`;
+
+            // Render tracks side by side
+            html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:10px;">';
+            Object.entries(tracks).forEach(([track, items]) => {
+                html += `<div><div class="track-label">${track}</div>`;
+                items.forEach((name, i) => {
+                    const tech = techs[name];
+                    const unlocked = G.techs[name];
+                    const prereqMet = tech.prereq.every(p => G.techs[p]);
+                    const prevInTrack = i > 0 ? items[i - 1] : null;
+                    const prevUnlocked = prevInTrack ? G.techs[prevInTrack] : true;
+                    const chainComplete = prereqMet && prevUnlocked;
+
+                    const canAfford = G.research >= tech.cost;
+                    const storyLocked = tech.storyLocked && !G.joannUnlocked;
+                    const available = !unlocked && chainComplete && !storyLocked;
+                    const isLocked = !unlocked && (!chainComplete || storyLocked);
+
+                    html += `<div class="tree-node ${unlocked ? 'unlocked' : ''} ${available && canAfford ? 'available' : ''} ${isLocked ? 'locked' : ''} ${storyLocked ? 'story-locked' : ''}"
+                        onclick="${available && canAfford ? `unlockTech('${name}')` : ''}"
+                        title="${!chainComplete && !unlocked ? 'Unlock previous items first' : ''}"
+                        style="margin:4px auto;min-width:55px;">
+                        ${i > 0 || name !== items[0] ? '' : '<div class="tree-connector vertical ' + (G.techs[topTech] ? 'unlocked' : '') + '"></div>'}
+                        <div class="node-icon">${tech.icon}</div>
+                        <div class="node-name">${name.length > 12 ? name.substring(0,10)+'..' : name}</div>
+                        <div class="node-cost">${unlocked ? '✓' : storyLocked ? '🔒' : tech.cost + '📜'}</div>
+                    </div>`;
+                });
+                html += '</div>';
+            });
+            html += '</div></div>';
+            document.getElementById('techTab').innerHTML = html;
+        }
+
+        function adjustWorker(job, delta) {
+            const newCount = (G.workers[job] || 0) + delta;
+            const total = Object.values(G.workers).reduce((a, b) => a + b, 0) + delta;
+            if (newCount >= 0 && total <= G.pop && G.unlockedDepts.includes(job)) {
+                G.workers[job] = newCount; updateUI();
+                if (G.requiredAction === 'assignResearcher' && G.workers["Researchers"] >= 1) {
+                    addLog("🔬 Garage Lab established!", "purchase"); completeAction('assignResearcher');
+                }
+                if (G.requiredAction === 'assignEngineer' && G.workers["Engineers"] >= 1) {
+                    addLog("⚓ Scrapyard operational!", "purchase"); completeAction('assignEngineer');
+                }
+            }
+        }
+
+        function setWorkerCount(job, value) {
+            const newCount = Math.max(0, parseInt(value) || 0);
+            const currentCount = G.workers[job] || 0;
+            const otherWorkers = Object.values(G.workers).reduce((a, b) => a + b, 0) - currentCount;
+            const maxAllowed = G.pop - otherWorkers;
+            const finalCount = Math.min(newCount, maxAllowed);
+
+            if (G.unlockedDepts.includes(job)) {
+                G.workers[job] = finalCount; updateUI();
+                if (G.requiredAction === 'assignResearcher' && G.workers["Researchers"] >= 1) {
+                    addLog("🔬 Garage Lab established!", "purchase"); completeAction('assignResearcher');
+                }
+                if (G.requiredAction === 'assignEngineer' && G.workers["Engineers"] >= 1) {
+                    addLog("⚓ Scrapyard operational!", "purchase"); completeAction('assignEngineer');
+                }
+            }
+        }
+
+        function buyBuilding(name) {
+            const b = buildings[name];
+
+            // Check tech requirements first
+            if (!canBuildBuilding(name)) {
+                const reason = getBuildingLockReason(name);
+                if (reason) addLog(`🔒 Cannot build ${name}: ${reason}`, 'warning');
+                return;
+            }
+
+            if (G.isotopes >= b.cost && G.buildings[name] === 0) {
+                // Special case: GAI requires minesweeper challenge
+                if (b.victory) {
+                    startMinesweeper();
+                    return;
+                }
+
+                G.isotopes -= b.cost; G.buildings[name] = 1;
+                playSound('building');
+                addLog(`Built ${b.icon} ${name}!`, 'purchase');
+                applyModifiers(); updateUI();
+            }
+        }
+
+        function unlockTech(name) {
+            const t = techs[name];
+            if (t.storyLocked && !G.joannUnlocked) return;
+            if (G.techs[name]) return; // Already unlocked
+
+            // Check prerequisites
+            if (!t.prereq.every(p => G.techs[p])) return;
+
+            // Check chain - find which track this tech is in and verify previous item is unlocked
+            const tracks = {
+                "Support": ["Alumni Network", "Recommendation Letters", "Cambridge Pizza"],
+                "Engineering": ["Nukes", "Rodent Surgery", "CRISPR", "CSAIL"],
+                "Fundraising": ["Newspaper Ads", "Joann DiGennaro", "Startups Ned Koh"],
+                "Research": ["Kathy USABO", "STS Formatting", "Mark Kantrowitz"]
+            };
+            for (const [track, items] of Object.entries(tracks)) {
+                const idx = items.indexOf(name);
+                if (idx > 0 && !G.techs[items[idx - 1]]) return; // Previous in chain not unlocked
+            }
+
+            if (G.research >= t.cost) {
+                // Special case: Mark Kantrowitz requires Wordle challenge
+                if (name === "Mark Kantrowitz") {
+                    startWordle();
+                    return;
+                }
+
+                G.research -= t.cost; G.techs[name] = true;
+                playSound('tech');
+                addLog(`Researched ${t.icon} ${name}!`, 'purchase');
+                applyModifiers(); updateUI();
+                if (G.requiredAction === 'unlockNewspaperAds' && name === 'Newspaper Ads') completeAction('unlockNewspaperAds');
+            }
+        }
+
+        function applyModifiers() {
+            G.flatBonus = { money: 0, isotopes: 0, research: 0, nerds: 0 };
+            G.multBonus = { money: 1, isotopes: 1, research: 1, nerds: 1 };
+            Object.entries(G.techs).forEach(([name, unlocked]) => {
+                if (unlocked && techs[name]) {
+                    const t = techs[name];
+                    Object.entries(t.bonus || {}).forEach(([k, v]) => G.flatBonus[k] += v);
+                    Object.entries(t.mult || {}).forEach(([k, v]) => G.multBonus[k] *= v);
+                }
+            });
+            Object.entries(G.buildings).forEach(([name, count]) => {
+                if (count > 0 && buildings[name]) {
+                    const b = buildings[name];
+                    Object.entries(b.bonus || {}).forEach(([k, v]) => G.flatBonus[k] += v * count);
+                    Object.entries(b.mult || {}).forEach(([k, v]) => G.multBonus[k] *= Math.pow(v, count));
+                }
+            });
+            if (G.covidActive) G.multBonus.isotopes *= 0.8;
+        }
+
+        function computeYields() {
+            let y = { money: 0, isotopes: 0, research: 0 };
+            Object.entries(G.workers).forEach(([job, count]) => {
+                if (G.unlockedDepts.includes(job)) {
+                    Object.entries(jobs[job].yields).forEach(([k, v]) => y[k] = (y[k] || 0) + v * count);
+                }
+            });
+            Object.keys(y).forEach(k => y[k] = (y[k] + (G.flatBonus[k] || 0)) * (G.multBonus[k] || 1));
+            return y;
+        }
+
+        function showYieldPreview() {
+            const y = computeYields();
+            const fundraisers = G.workers["Fundraisers"] || 0;
+            const income = fundraisers * 2.5 * (G.multBonus.money || 1);
+            const costs = G.pop * 2;
+            const net = income - costs;
+            alert(`Turn ${G.turn}:\n💰 Income: $${income.toFixed(1)} (${fundraisers} fundraisers × $2.5)\n💸 Costs: $${costs.toFixed(1)} (${G.pop} nerds × $2)\n📊 Net: ${net >= 0 ? '+' : ''}$${net.toFixed(1)}\n⚛️ +${y.isotopes.toFixed(1)} isotopes\n📜 +${y.research.toFixed(1)} papers\n👥 Pop: ${G.pop}/120`);
+        }
+
+        function endTurn() {
+            if (G.waitingForAction) { addLog("Complete required action!", "warning"); return; }
+
+            applyModifiers();
+            const y = computeYields();
+
+            // New money mechanics:
+            // Fundraisers earn $2.5 each, each nerd costs $2
+            const fundraisers = G.workers["Fundraisers"] || 0;
+            const income = fundraisers * 2.5 * (G.multBonus.money || 1);
+            const costs = G.pop * 2;
+            const netMoney = income - costs;
+
+            G.money += netMoney;
+            if (netMoney > 0) playSound('money');
+
+            if (G.unlockedResources.includes('isotopes')) G.isotopes += y.isotopes;
+            G.research += y.research;
+
+            // Population changes based on money (no limits per turn, max 120 nerds)
+            // For every positive dollar, gain a nerd
+            // For every negative dollar, lose a nerd
+            const MAX_POP = 120;
+            if (G.money >= 1 && G.pop < MAX_POP) {
+                const nerdsToGain = Math.min(Math.floor(G.money), MAX_POP - G.pop);
+                if (nerdsToGain > 0) {
+                    G.pop += nerdsToGain;
+                    G.money -= nerdsToGain;
+                    // Only play welcome sound the first time
+                    if (!G.firstNerdSoundPlayed) {
+                        playSound('newPerson');
+                        G.firstNerdSoundPlayed = true;
+                    }
+                    addLog(`🎉 +${nerdsToGain} new nerd${nerdsToGain > 1 ? 's' : ''}!`, "event");
+                }
+            } else if (G.money <= -1 && G.pop > 1) {
+                const nerdsToLose = Math.min(Math.floor(Math.abs(G.money)), G.pop - 1);
+                if (nerdsToLose > 0) {
+                    G.pop -= nerdsToLose;
+                    G.money += nerdsToLose;
+                    addLog(`😢 -${nerdsToLose} nerd${nerdsToLose > 1 ? 's' : ''} left!`, "warning");
+                }
+            }
+
+            normalizeWorkers();
+            G.isotopes = Math.max(0, G.isotopes); G.research = Math.max(0, G.research);
+            G.turn++;
+
+            handleStoryEvents();
+            handleRandomEvents();
+
+            if (!checkVictory()) checkDefeat();
+            updateUI();
+        }
+
+        function handleStoryEvents() {
+            if (G.tutorialSkipped) {
+                // Still show key story moments even if tutorial skipped
+                if (G.turn === 11) {
+                    addLog("📺 BREAKING: Rickover fired from Navy!", "story");
+                    showEmergency("🚨 BREAKING NEWS 🚨", "Admiral Hyman G. Rickover has been FIRED from the United States Navy by Secretary John Lehman! After 63 years of service, the Father of the Nuclear Navy has been dismissed. This is a national emergency.");
+                } else if (G.turn === 15) {
+                    addLog("🏛️ RSI founded!", "story");
+                } else if (G.turn === 20) {
+                    G.narrator = 'joann';
+                    addLog("⚓ Rickover passes (1986)", "story"); showDialogue('turn20');
+                } else if (G.turn === 21 && G.money > 0) {
+                    addLog("🐔 Chicken Crossing opportunity!", "story");
+                    setTimeout(() => showCrossyModal(), 1500);
+                }
+                return;
+            }
+
+            if (G.turn === 2) {
+                G.unlockedDepts.push('Researchers'); G.techTreeUnlocked = true;
+                addLog("📜 Research unlocked!", "story"); showDialogue('turn2');
+            } else if (G.turn === 3 && !G.techs["Newspaper Ads"]) {
+                showDialogue('turn3');
+            } else if (G.turn === 4) {
+                G.unlockedDepts.push('Engineers'); G.unlockedResources.push('isotopes');
+                addLog("⚛️ Engineering unlocked!", "story"); showDialogue('turn4');
+            } else if (G.turn === 11) {
+                G.joannUnlocked = true;
+                addLog("📺 BREAKING: Rickover fired from Navy!", "story");
+                showEmergency("🚨 BREAKING NEWS 🚨", "Admiral Hyman G. Rickover has been FIRED from the United States Navy by Secretary John Lehman! After 63 years of service, the Father of the Nuclear Navy has been dismissed. This is a national emergency.");
+            } else if (G.turn === 15) {
+                addLog("🏛️ RSI founded!", "story"); showDialogue('turn15');
+            } else if (G.turn === 20) {
+                G.narrator = 'joann'; G.unlockedDepts.push('Recruiters');
+                addLog("⚓ Rickover passes (1986)", "story"); showDialogue('turn20');
+            } else if (G.turn === 21 && G.money > 0) {
+                // Crossy Road mini-game opportunity
+                addLog("🐔 Chicken Crossing opportunity!", "story");
+                setTimeout(() => showCrossyModal(), 1500);
+            }
+        }
+
+        function handleRandomEvents() {
+            // Start random events from turn 5
+            if (G.turn < 5) return;
+
+            // Skip during story event turns (including turn 21 for Crossy Road)
+            const storyTurns = [2, 3, 4, 11, 15, 20, 21];
+            if (storyTurns.includes(G.turn)) return;
+
+            // 50% chance for random event
+            if (Math.random() < 0.50) {
+                // Check for choice events first (only if not already occurred)
+                const availableChoice = choiceEvents.find(e =>
+                    (!e.condition || e.condition()) &&
+                    !G.occurredChoiceEvents.includes(e.name)
+                );
+                if (availableChoice && Math.random() < 0.3) {
+                    G.occurredChoiceEvents.push(availableChoice.name);
+                    showEventChoice(availableChoice);
+                    return;
+                }
+
+                // Regular random events (only if not already occurred)
+                const available = randomEvents.filter(e =>
+                    (!e.condition || e.condition()) &&
+                    !G.occurredEvents.includes(e.name)
+                );
+                if (available.length > 0) {
+                    const event = available[Math.floor(Math.random() * available.length)];
+                    showRandomEvent(event);
+                }
+            }
+        }
+
+        function normalizeWorkers() {
+            const total = Object.values(G.workers).reduce((a, b) => a + b, 0);
+            if (total === G.pop) return;
+            const ratio = G.pop / Math.max(1, total);
+            let newTotal = 0;
+            Object.keys(G.workers).forEach(j => {
+                if (G.unlockedDepts.includes(j)) { G.workers[j] = Math.max(0, Math.round(G.workers[j] * ratio)); newTotal += G.workers[j]; }
+            });
+            G.workers["Fundraisers"] = Math.max(0, G.workers["Fundraisers"] + (G.pop - newTotal));
+        }
+
+        function checkVictory() {
+            if (G.buildings["GAI"] >= 1) {
+                playSound('win');
+                document.getElementById('gameModal').className = 'modal victory';
+                document.getElementById('modalTitle').textContent = "🤖 VICTORY!";
+                document.getElementById('modalMessage').textContent = `Generalized AI created on turn ${G.turn}! Rickover returns in digital form. World hunger solved. Climate fixed. Peace achieved. America is saved!`;
+                document.getElementById('modalOverlay').classList.add('active');
+                return true;
+            }
+            return false;
+        }
+
+        function checkDefeat() {
+            let msg = null;
+            if (G.turn > G.maxTurn) msg = "Turn 75 passed. The government became too stupid. America nuked itself. 💥";
+            else if (G.pop <= 0) msg = "All nerds left. The program collapsed. America is doomed.";
+            if (msg) {
+                playSound('lose');
+                document.getElementById('gameModal').className = 'modal defeat';
+                document.getElementById('modalTitle').textContent = "💔 DEFEAT";
+                document.getElementById('modalMessage').textContent = msg;
+                document.getElementById('modalOverlay').classList.add('active');
+            }
+        }
+
+        function addLog(msg, type = '') { document.getElementById('eventLog').innerHTML = `<div class="log-entry ${type}">T${G.turn}: ${msg}</div>` + document.getElementById('eventLog').innerHTML; }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.getElementById(tab + 'Tab').classList.add('active');
+        }
+    </script>
+</body>
+</html>
